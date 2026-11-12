@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.6.1] - 2026-11-12
+### Changed
+- Updates are now connected to the official repository, so installed copies can find and install new releases.
+
 ## [2.6.0] - 2026-11-12
 ### Added
 - Built-in updater: checks this repository for new releases, shows what's new, installs in place, keeps backups, and rolls back automatically if an update fails.
