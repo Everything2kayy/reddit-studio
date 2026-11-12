@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.6.5] - 2026-11-12
+### Changed
+- Helper suggests Sign in with Chrome first when Reddit blocks you, then trying a different network. Reddit now approves new API keys mainly for moderation tools, so the API key option is tucked away for people who already have one.
+### Added
+- Archive mode: when Reddit blocks both its data and RSS feeds, communities, user posts, and comment threads load from a public archive copy (Arctic Shift). It can be days or weeks behind and has no live scores; r/popular and r/all aren't available there.
+
 ## [2.6.4] - 2026-11-12
 ### Added
 - Helper (magic-wand button in the top bar): one-click actions for everything that used to need Terminal — set up sign-in, sign in with Chrome, check or remove sign-in, build the installer, and publish an update to GitHub.

@@ -510,7 +510,7 @@ async function refreshAccount() {
   const api = account.api || {};
   b.classList.toggle("on", account.available || !!api.active);
   if (api.active) b.classList.remove("warn");
-  $("#acctlabel").textContent = api.active ? "API key" : account.available ? `u/${account.user || "signed in"}` : account.rss ? "Limited mode" : "Public mode";
+  $("#acctlabel").textContent = api.active ? "API key" : account.available ? `u/${account.user || "signed in"}` : account.archive && account.rss ? "Archive mode" : account.rss ? "Limited mode" : "Public mode";
   b.title = api.error || account.error || (api.active ? "Reading through Reddit's official API with your key" : account.available ? "Signed in with rdt-cli" : "Not signed in");
   renderChips();
 }
@@ -519,7 +519,8 @@ function apiSection(a) {
   if (k.configured) return `<div class="apibox"><p><b>Your API key</b> ${k.active ? "is in use" : "is saved"} (client ID ${esc(k.client_id)}${k.username ? `, u/${esc(k.username)}` : ""}). Reddit Studio reads through Reddit's official API first, so public communities load reliably with scores and comments.</p>
       ${k.error ? `<p class="error">${esc(k.error)}</p>` : ""}
       <button id="apiclear">${icon("logout")}Remove API key</button></div><hr>`;
-  return `<details class="apibox"${a.rss || a.error ? " open" : ""}><summary><b>Use your own API key</b> (most reliable)</summary>
+  return `<details class="apibox"><summary><b>Have an approved API key?</b> <span class="muted">(moderators)</span></summary>
+      <p class="muted" style="font-size:13px">Reddit now approves new API keys mainly for moderation tools, so most people should use <b>Sign in with Chrome</b> below instead. If Reddit approved an app for you, add it here.</p>
       <ol style="font-size:13px;padding-left:18px">
         <li>Open <b>reddit.com/prefs/apps</b> while logged in and click <b>create another app</b>.</li>
         <li>Pick any name, choose <b>script</b>, and put <code>http://localhost:8080</code> as the redirect URI.</li>
@@ -566,7 +567,7 @@ function acctRenderInner() {
     b.innerHTML = `<p>Your Reddit sign-in is saved but switched off, so Reddit Studio is using public data.</p><button class="primary" id="signon">${icon("login")}Use my sign-in again</button>`;
     $("#signon").onclick = () => toggleSignin("on");
   } else {
-    b.innerHTML = `<p>${a.rss ? "Reddit is blocking public data, so you're in <b>limited mode</b> (RSS feeds: no scores or nested replies)." : "You're using public data."}</p>
+    b.innerHTML = `<p>${a.archive && a.rss ? "Reddit is blocking this network, so you're in <b>archive mode</b>: posts come from a public archive copy, which can be days or weeks behind. Sign in below for live data." : a.rss ? "Reddit is blocking public data, so you're in <b>limited mode</b> (RSS feeds: no scores or nested replies)." : "You're using public data."}</p>
       <p class="muted" style="font-size:13px">Log into Reddit in Chrome first, ideally with a <b>secondary account</b>. Then click the button: Reddit Studio copies that sign-in (macOS may ask for your Mac password so it can read Chrome's saved data).</p>
       ${a.error ? `<p class="error">${esc(a.error)}</p>` : ""}
       <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" id="dosignin">${icon("login")}Sign in with Chrome</button>
@@ -596,7 +597,7 @@ async function refreshHelper(err) {
 }
 function suggHTML(s) {
   return `<div class="sugg"><div class="t"><b>${esc(s.title)}</b><span>${esc(s.why)}</span></div>
-    <button class="primary" data-sugg="${esc(s.action)}" data-kind="${esc(s.kind)}">${s.kind === "panel" ? "Open" : "Do it"}</button></div>`;
+    ${s.kind === "info" ? "" : `<button class="primary" data-sugg="${esc(s.action)}" data-kind="${esc(s.kind)}">${s.kind === "panel" ? "Open" : "Do it"}</button>`}</div>`;
 }
 function wireSugg(root) {
   root.querySelectorAll("[data-sugg]").forEach(b => b.onclick = () => {
@@ -647,7 +648,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") $("#helpmoda
 refreshHelper(); setInterval(refreshHelper, 60000);
 /* a fix button under errors, picked from the helper's suggestions */
 async function fixButton(el, err) {
-  const h = await refreshHelper(err); const s = h && (h.suggestions || [])[0]; if (!s || !el.isConnected) return;
+  const h = await refreshHelper(err); const s = h && (h.suggestions || []).find(x => x.kind !== "info"); if (!s || !el.isConnected) return;
   el.insertAdjacentHTML("beforeend", ` <button class="primary" data-sugg="${esc(s.action)}" data-kind="${esc(s.kind)}">${icon("auto_fix_high")}${esc(s.title)}</button>`);
   wireSugg(el);
 }

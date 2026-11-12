@@ -253,7 +253,7 @@ def _signed_client():
 
 def signed_status():
     return {"available": bool(_signed_client()), "user": SIGNED["user"], "error": SIGNED["error"],
-            "off": SIGNED["off"], "rss": MODE["rss"], "cred_file": os.path.exists(CRED_FILE),
+            "off": SIGNED["off"], "rss": MODE["rss"], "archive": MODE.get("archive", False), "cred_file": os.path.exists(CRED_FILE),
             "api": api_status()}
 
 
@@ -325,7 +325,99 @@ def fetch(path, **params):
         if reason:      # a real per-community answer, e.g. private or banned
             raise RuntimeError(f"Reddit says that community is {reason}.")
         MODE.update(rss=True, since=time.time())     # blanket block: switch to RSS
-    return _fetch_rss(path, params)
+    try:
+        return _fetch_rss(path, params)
+    except RuntimeError as rss_err:
+        try:
+            data = _fetch_archive(path, params)
+        except Exception:
+            data = None
+        if data is None:
+            raise rss_err
+        return data
+
+
+# ---------- archive fallback (Arctic Shift) ----------
+# A free, community-run copy of public Reddit posts and comments. Used only when Reddit
+# blocks both its data and RSS feeds. It can lag behind Reddit and has no live scores.
+ARCHIVE = "https://arctic-shift.photon-reddit.com/api"
+
+
+def _archive_get(endpoint, q):
+    url = f"{ARCHIVE}/{endpoint}?{urlencode(q)}"
+    hit = _cache.get(url)
+    if hit and time.time() - hit[0] < CACHE_TTL:
+        return hit[1]
+    code, body = _get(url, "application/json")
+    if code != 200:
+        return None
+    try:
+        rows = json.loads(body).get("data")
+    except (ValueError, AttributeError):
+        return None
+    if not isinstance(rows, list):
+        return None
+    _cache[url] = (time.time(), rows)
+    return rows
+
+
+def _archive_post(d):
+    d = dict(d)
+    d.setdefault("name", "t3_" + str(d.get("id", "")))
+    d.setdefault("permalink", f"/r/{d.get('subreddit', '')}/comments/{d.get('id', '')}/")
+    d.setdefault("is_self", not d.get("url") or "/comments/" in str(d.get("url")))
+    d["archived_copy"] = True
+    return d
+
+
+def _fetch_archive(path, params):
+    limit = min(int(params.get("limit", 25) or 25), 100)
+    before = params.get("after")
+    m = re.fullmatch(r"/r/([A-Za-z0-9_]+)(?:/(hot|new|top|rising|best|controversial))?/?", path)
+    u = re.fullmatch(r"/user/([A-Za-z0-9_-]+)(?:/(submitted|overview))?/?", path)
+    c = re.fullmatch(r"/(?:r/[^/]+/)?comments/([a-z0-9]+)(?:/.*)?", path)
+    if (m and m.group(1).lower() not in ("all", "popular")) or u:
+        q = {"limit": limit, "sort": "desc"}
+        q["subreddit" if m else "author"] = (m or u).group(1)
+        if before and str(before).startswith("t3_"):
+            prev = _cache.get("archive_ts:" + before)
+            if prev:
+                q["before"] = prev[1]
+        rows = _archive_get("posts/search", q)
+        if rows is None:
+            return None
+        posts = [_archive_post(r) for r in rows]
+        for p in posts:
+            _cache["archive_ts:" + p["name"]] = (time.time(), int(p.get("created_utc") or 0))
+        MODE["archive"] = True
+        last = posts[-1]["name"] if len(posts) >= limit else None
+        return _listing_of([("t3", p) for p in posts], last)
+    if c:
+        pid = c.group(1)
+        prow = _archive_get("posts/ids", {"ids": pid})
+        crow = _archive_get("comments/search", {"link_id": pid, "limit": 100})
+        if not prow:
+            return None
+        nodes = {}
+        for r in crow or []:
+            d = dict(r)
+            d.setdefault("name", "t1_" + str(d.get("id", "")))
+            d["replies"] = ""
+            nodes[d["name"]] = {"kind": "t1", "data": d}
+        roots = []
+        for n in sorted(nodes.values(), key=lambda n: n["data"].get("created_utc") or 0):
+            par = n["data"].get("parent_id") or ""
+            if par in nodes:
+                pd = nodes[par]["data"]
+                if not pd["replies"]:
+                    pd["replies"] = _listing_of([], None)
+                pd["replies"]["data"]["children"].append(n)
+            else:
+                roots.append(n)
+        MODE["archive"] = True
+        return [_listing_of([("t3", _archive_post(prow[0]))], None),
+                {"kind": "Listing", "data": {"children": roots, "after": None}}]
+    return None
 
 
 # ---------- RSS fallback ----------

@@ -8,7 +8,7 @@ self-updater from GitHub tags, Control Center (`rsctl`), double-click installer.
   - `app.py` Flask routes; phone access (LAN listener + QR token gate); update/sign-in/restart endpoints.
     State-changing endpoints require header `X-Reddit-Studio: 1` (blocks cross-site requests) and are refused from phones.
   - `reddit_tools.py` data layer + 37 tools. Fetch order: rdt-cli sign-in (`~/.config/rdt-cli/credential.json`)
-    → anonymous `.json` → RSS fallback (Reddit blocked anonymous `.json` in 2026). `MODE`, `SIGNED`, `signed_status()`.
+    → anonymous `.json` → RSS → Arctic Shift archive (`_fetch_archive`, subreddit/user/thread only). Reddit blocked anonymous `.json` in 2026 and gates new API keys to moderation use. `MODE`, `SIGNED`, `signed_status()`.
   - `updater.py` checks `api.github.com/repos/<repo>/tags`, reads CHANGELOG.md at the tag, downloads the codeload
     tarball, validates (safe paths, required files, VERSION == tag), backs up to `.old/`, swaps files, pip-installs if
     requirements changed, smoke-tests, auto-rolls back on failure. `REDDIT_STUDIO_UPDATE_MIRROR` env var points it at a

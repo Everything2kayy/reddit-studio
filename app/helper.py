@@ -323,22 +323,27 @@ def suggestions(account, err_hint=""):
                     "score": round(base * (_trust(action) if kind == "action" else 1), 3)})
 
     api = account.get("api") or {}
-    blocked = account.get("rss") or bool(account.get("error"))
+    err = account.get("error") or ""
+    hint = (err_hint or "").lower()
+    blocked = account.get("rss") or bool(err) or any(
+        w in hint for w in ("403", "blocking", "couldn't reach", "refused"))
+    signed = account.get("cred_file")
     if api.get("configured") and api.get("error"):
         add("apikey", "Fix your API key", api["error"], 0.95, kind="panel")
-    err = account.get("error") or ""
-    if account.get("cred_file") and ("403" in err or "expired" in err):
-        add("signin", "Refresh your Reddit sign-in", "Reddit refused your saved sign-in. Signing in again usually fixes it.", 0.9)
-    hint = (err_hint or "").lower()
-    if hint and any(w in hint for w in ("403", "blocking", "couldn't reach", "refused")):
-        blocked = True
-    if blocked and not api.get("configured"):
-        add("apikey", "Add your own API key", "Reddit is blocking public data on this network. Your own key is the most reliable fix.", 0.85, kind="panel")
-    if not account.get("cred_file"):
+    if signed and ("403" in err or "expired" in err or "refused" in hint):
+        add("signin", "Refresh your Reddit sign-in", "Reddit refused your saved sign-in. Signing in again usually fixes it.", 0.92)
+    if not signed:
         if _rdt():
-            add("signin", "Sign in with Chrome", "Unlocks your Home feed and Saved posts.", 0.5)
+            add("signin", "Sign in with Chrome",
+                "Reads with your own Reddit account: full data, Home feed and Saved posts. Log into Reddit in Chrome first.",
+                0.9 if blocked else 0.5)
         else:
-            add("install_signin", "Set up Reddit sign-in", "Needed once for Home, Saved, and full data.", 0.45)
+            add("install_signin", "Set up Reddit sign-in",
+                "One-time setup so Reddit Studio can read with your Reddit account.", 0.88 if blocked else 0.45)
+    if blocked:
+        add("network", "Try a different network",
+            "Reddit sometimes blocks a whole home connection. Switch to your phone's hotspot for a minute, then click Try again.",
+            0.6, kind="info")
     pp = pending_patches()
     if pp:
         names = ", ".join(os.path.basename(p) for p in pp)
