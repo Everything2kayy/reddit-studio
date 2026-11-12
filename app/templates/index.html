@@ -1,0 +1,907 @@
+<!doctype html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Reddit Studio</title>
+<meta name="theme-color" content="#0f1115">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=block">
+<script src="/static/vendor/purify.min.js"></script>
+<script src="/static/vendor/hls.light.min.js" defer></script>
+<style>
+[data-theme=midnight]{--bg:#0f1115;--panel:#171a21;--panel2:#1d2129;--text:#e7eaf0;--muted:#8b93a7;--border:#262b36;--accent:#7aa2ff}
+[data-theme=daylight]{--bg:#f5f6f8;--panel:#fff;--panel2:#f0f2f5;--text:#1b1f27;--muted:#657085;--border:#dfe3ea;--accent:#2563eb}
+[data-theme=sepia]{--bg:#f4ecd8;--panel:#fbf6e9;--panel2:#f2e8d2;--text:#5b4636;--muted:#8a7360;--border:#e0d3b5;--accent:#9c5b1f}
+[data-theme=nord]{--bg:#2e3440;--panel:#3b4252;--panel2:#434c5e;--text:#eceff4;--muted:#a3adc2;--border:#4c566a;--accent:#88c0d0}
+[data-theme=matrix]{--bg:#000;--panel:#031a0a;--panel2:#062612;--text:#7dff9b;--muted:#3fae63;--border:#0d3d1d;--accent:#00ff66}
+[data-theme=reddit]{--bg:#0b1416;--panel:#1a1a1b;--panel2:#272729;--text:#d7dadc;--muted:#8b8d8f;--border:#343536;--accent:#ff4500}
+[data-theme=synth]{--bg:#1a0b2e;--panel:#241240;--panel2:#2e1850;--text:#f0e6ff;--muted:#b38cff;--border:#3d1f66;--accent:#ff4fd8}
+[data-theme=contrast]{--bg:#000;--panel:#000;--panel2:#111;--text:#fff;--muted:#ddd;--border:#fff;--accent:#ffff00}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+  display:flex;flex-direction:column;overflow:hidden}
+a{color:var(--accent)}
+button,input,select{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--border);border-radius:9px;padding:7px 10px}
+button{cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+button:hover{border-color:var(--accent)}
+button:disabled{opacity:.5;cursor:default}
+.primary{background:var(--accent);color:var(--bg);border-color:transparent;font-weight:600}
+.ghost{background:transparent;border-color:transparent}
+.ghost:hover{background:var(--panel2);border-color:var(--border)}
+.ms{font-family:"Material Symbols Rounded";font-weight:normal;font-style:normal;font-size:20px;line-height:1;
+  letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;direction:ltr;
+  -webkit-font-feature-settings:"liga";-webkit-font-smoothing:antialiased;vertical-align:middle;
+  width:1em;overflow:hidden}
+html:not(.icons-ok) .ms{color:transparent}
+html.icons-off .ms{display:none}
+html.icons-off .ms[data-fb]{display:inline;font-size:0;width:auto;overflow:visible;color:inherit}
+html.icons-off .ms[data-fb]::after{content:attr(data-fb);font:600 12px Inter,system-ui,sans-serif}
+.muted{color:var(--muted)}
+.error{color:#ff6b6b}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* ---------- top bar ---------- */
+header{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px;margin-right:6px}
+.brand img{width:26px;height:26px;border-radius:7px}
+.tabs{display:flex;gap:4px;background:var(--panel2);padding:3px;border-radius:11px;border:1px solid var(--border)}
+.tabs button{border:0;background:transparent;padding:6px 12px;border-radius:8px}
+.tabs button.on{background:var(--accent);color:var(--bg);font-weight:600}
+.spacer{flex:1}
+#accent{padding:2px;width:36px;height:34px}
+.view{flex:1;min-height:0;display:none}
+.view.on{display:flex}
+
+/* ---------- reader ---------- */
+#reader{flex-direction:column}
+.rbar{display:flex;gap:8px;padding:10px 14px;align-items:center;flex-wrap:wrap;border-bottom:1px solid var(--border)}
+.addr{flex:1;min-width:220px;display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--border);border-radius:10px;padding:0 4px 0 10px}
+.addr input{flex:1;border:0;background:transparent;padding:8px 0;min-width:0}
+.addr input:focus{outline:none}
+.addr:focus-within{border-color:var(--accent)}
+.ver{font-size:12px;color:var(--muted)}
+.ver.avail{color:var(--bg);background:var(--accent);border-color:transparent;font-weight:600}
+.notes{white-space:pre-wrap;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px;max-height:240px;overflow:auto;font-size:13px}
+.acct{font-size:12.5px}
+.acct .dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}
+.acct.on .dot{background:#2bb673}.acct.warn .dot{background:#f5a623}
+.limited{padding:8px 14px;font-size:12.5px;background:color-mix(in srgb,var(--accent) 14%,var(--panel));border-bottom:1px solid var(--border)}
+.chips{display:flex;gap:6px;padding:8px 14px;overflow-x:auto;border-bottom:1px solid var(--border)}
+.chip{padding:4px 11px;border-radius:999px;font-size:13px;background:var(--panel)}
+.chip.on{border-color:var(--accent);color:var(--accent)}
+.cols{flex:1;min-height:0;display:grid;grid-template-columns:minmax(320px,440px) 1fr}
+.cols.wide{grid-template-columns:minmax(320px,1fr) minmax(380px,1.2fr)}
+#feedwrap{overflow:auto;border-right:1px solid var(--border);min-width:0}
+.feedhead{display:flex;align-items:center;gap:8px;padding:10px 12px;position:sticky;top:0;background:var(--bg);z-index:2;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.feedhead h2{margin:0;font-size:15px;flex:1 1 100%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.seg{display:flex;border:1px solid var(--border);border-radius:9px;overflow:hidden}
+.seg button{border:0;border-radius:0;background:var(--panel2);padding:5px 8px}
+.seg button.on{background:var(--accent);color:var(--bg)}
+#feed{padding:8px;display:grid;gap:8px}
+#feed.grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+.card{display:flex;gap:10px;padding:10px;border:1px solid var(--border);background:var(--panel);border-radius:12px;cursor:pointer;min-width:0}
+.card:hover{border-color:var(--muted)}
+.card.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.card .th{flex:0 0 76px;height:76px;border-radius:9px;background:var(--panel2) center/cover no-repeat;display:grid;place-items:center;color:var(--muted);position:relative;overflow:hidden}
+.card .th .badge{position:absolute;right:4px;bottom:4px;background:rgba(0,0,0,.65);color:#fff;border-radius:6px;padding:1px 3px;font-size:14px}
+.card .cb{min-width:0;flex:1}
+.card h3{margin:2px 0 4px;font-size:14px;font-weight:600;line-height:1.35;overflow-wrap:anywhere}
+.meta{font-size:12px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.meta .ms{font-size:15px}
+.flair{background:var(--panel2);border:1px solid var(--border);border-radius:6px;padding:0 6px;font-size:11px}
+.tag{border-radius:6px;padding:0 6px;font-size:11px;font-weight:600}
+.tag.nsfw{background:#d33;color:#fff}.tag.spoiler{background:#888;color:#fff}.tag.pin{background:#2a7;color:#fff}
+#feed.grid .card{flex-direction:column}
+#feed.grid .card .th{flex:none;width:100%;height:150px}
+.blurred{filter:blur(16px)}
+.loadmore{margin:6px 8px 16px;justify-content:center}
+.empty{padding:40px 20px;text-align:center;color:var(--muted)}
+
+#detail{overflow:auto;min-width:0;position:relative}
+.dwrap{max-width:860px;margin:0 auto;padding:16px 20px 60px}
+.dtop{display:flex;align-items:center;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.dtitle{font-size:20px;line-height:1.3;margin:6px 0 8px;overflow-wrap:anywhere}
+.media{margin:12px 0;border-radius:12px;overflow:hidden;background:#000;position:relative}
+.media img,.media video{display:block;width:100%;max-height:72vh;object-fit:contain;background:#000}
+.gallery{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;background:#000}
+.gallery img{flex:0 0 100%;scroll-snap-align:center}
+.gcount{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.7);color:#fff;border-radius:8px;padding:2px 8px;font-size:12px}
+.reveal{position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.35);cursor:pointer;color:#fff;font-weight:600}
+.linkcard{display:flex;gap:10px;align-items:center;padding:12px;border:1px solid var(--border);border-radius:12px;background:var(--panel);text-decoration:none;color:var(--text);margin:12px 0;overflow-wrap:anywhere}
+.linkcard img{width:96px;height:72px;object-fit:cover;border-radius:8px;flex:none}
+.md{overflow-wrap:anywhere}
+.md p{margin:.5em 0}.md pre{background:var(--panel2);padding:10px;border-radius:8px;overflow:auto}
+.md blockquote{border-left:3px solid var(--border);margin:.5em 0;padding-left:10px;color:var(--muted)}
+.md img{max-width:100%}
+.md table{border-collapse:collapse;display:block;overflow:auto}.md td,.md th{border:1px solid var(--border);padding:4px 8px}
+.md .md-spoiler-text{background:var(--text);color:var(--text);border-radius:3px;cursor:pointer}
+.md .md-spoiler-text.shown{background:transparent}
+.actions{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0;padding:10px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.menuwrap{position:relative}
+.menu{position:absolute;z-index:20;top:calc(100% + 4px);left:0;min-width:230px;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:6px;box-shadow:0 10px 30px rgba(0,0,0,.35);display:none}
+.menu.open{display:block}
+.menu button{width:100%;border:0;background:transparent;justify-content:flex-start;padding:8px 10px}
+.menu button:hover{background:var(--panel2)}
+.chead{display:flex;align-items:center;gap:8px;margin:16px 0 8px}
+.chead h3{margin:0;font-size:15px;flex:1}
+.cmt{margin:6px 0 0;padding-left:12px;border-left:2px solid var(--border)}
+.cmt.collapsed>.cbody,.cmt.collapsed>.kids{display:none}
+.cmt .ch{font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cmt .ch b{color:var(--text)}
+.cmt .ch .op{color:var(--accent);font-weight:700}
+.cmt .tog{border:0;background:transparent;padding:0 2px;color:var(--muted);font-size:12px}
+.cmt .cbody{margin:2px 0 4px}
+.more{font-size:12px;margin:6px 0 0 12px}
+.dempty{display:grid;place-items:center;height:100%;color:var(--muted);text-align:center;padding:30px}
+.backbtn{display:none}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;vertical-align:middle}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ---------- tools ---------- */
+#tools aside{width:270px;flex:none;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0}
+#tools .top{padding:12px;border-bottom:1px solid var(--border)}
+#tsearch{width:100%}
+#nav{overflow:auto;padding:8px;flex:1}
+.cat{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:12px 6px 4px}
+.navitem{display:flex;width:100%;text-align:left;border:0;background:none;padding:7px 10px;border-radius:8px}
+.navitem:hover{background:var(--panel2)}
+.navitem.active{background:var(--accent);color:var(--bg)}
+#tools main{flex:1;overflow:auto;padding:22px;min-width:0}
+.tcard{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;margin-bottom:16px}
+#form{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+#form label{display:grid;gap:4px;font-size:12px;color:var(--muted)}
+.tactions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.tablewrap{overflow:auto;max-height:65vh}
+table.res{border-collapse:collapse;width:100%;font-size:13px}
+table.res th,table.res td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--border);vertical-align:top;max-width:420px;overflow-wrap:anywhere}
+table.res th{position:sticky;top:0;background:var(--panel);color:var(--muted)}
+pre.out{white-space:pre-wrap;word-break:break-word;background:var(--bg);padding:12px;border-radius:10px;border:1px solid var(--border);max-height:65vh;overflow:auto}
+.modalbg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:grid;place-items:center;z-index:50;padding:16px}
+.modalbg[hidden]{display:none}
+.modal.wide{width:min(760px,100%);max-height:86vh;overflow:auto}
+.dircat{margin:14px 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);display:flex;align-items:center;gap:6px}
+.dirgrid{display:flex;flex-wrap:wrap;gap:6px}
+.dirgrid .chip{display:inline-flex;align-items:center;gap:4px}
+.dirgrid .star{border:0;background:transparent;padding:0 0 0 2px;color:var(--muted);font-size:14px}
+.dirgrid .star.on{color:#f5b301}
+.dircat .adulttag{background:#d33;color:#fff;border-radius:6px;padding:0 6px;font-size:11px;letter-spacing:0}
+.dirset{border-top:1px solid var(--border);margin-top:16px;padding-top:12px;display:grid;gap:6px;font-size:13px}
+.dirset label{display:flex;gap:8px;align-items:center}
+@media (max-width:860px){html.icons-ok .dirlabel{display:none}}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;width:min(420px,100%);box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.qr{background:#fff;border-radius:12px;padding:14px;margin:14px auto;width:240px;height:240px}
+.qr svg{width:100%;height:100%;display:block}
+.steps{margin:8px 0;padding-left:20px;color:var(--muted);font-size:13px}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:8px 14px;border-radius:10px;font-weight:600;z-index:100;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+
+@media (max-width:860px){
+  body{overflow:auto}
+  header .hint{display:none}
+  header{gap:8px;padding:8px 10px}
+  .brand span.bt{display:none}
+  .cols,.cols.wide{grid-template-columns:1fr}
+  #detail{display:none}
+  .cols.showdetail #feedwrap{display:none}
+  .cols.showdetail #detail{display:block}
+  .backbtn{display:inline-flex}
+  #tools{flex-direction:column}
+  #tools aside{width:auto;max-height:40vh}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><img src="/static/icon.svg" alt=""><span class="bt">Reddit Studio</span></div>
+  <div class="tabs" role="tablist">
+    <button id="tab-reader" class="on" role="tab"><span class="ms">explore</span>Reader</button>
+    <button id="tab-tools" role="tab"><span class="ms">construction</span>Tools</button>
+  </div>
+  <div class="spacer"></div>
+  <button id="ver" class="ghost ver" title="About Reddit Studio">v…</button>
+  <button id="acct" class="ghost acct" title="Reddit account"><span class="dot"></span><span id="acctlabel">Public mode</span></button>
+  <select id="theme" aria-label="Theme">
+    <option value="midnight">Midnight</option><option value="daylight">Daylight</option>
+    <option value="sepia">Sepia</option><option value="nord">Nord</option>
+    <option value="matrix">Matrix</option><option value="reddit">Reddit</option>
+    <option value="synth">Synthwave</option><option value="contrast">High contrast</option>
+  </select>
+  <input id="accent" type="color" title="Accent color" aria-label="Accent color">
+  <button id="phonebtn" class="ghost" title="Use Reddit Studio on your phone"><span class="ms" data-fb="Phone">smartphone</span></button>
+  <button id="install" class="ghost" hidden title="Install as an app"><span class="ms">install_desktop</span>Install</button>
+</header>
+
+<!-- ================= READER ================= -->
+<section id="reader" class="view on">
+  <div class="rbar">
+    <form class="addr" id="addrform">
+      <span class="ms muted">search</span>
+      <input id="addr" placeholder="Subreddit (python), user (u/name), or paste any Reddit link" autocomplete="off" spellcheck="false">
+      <button class="primary" type="submit">Go</button>
+    </form>
+    <button id="dirbtn" title="Browse communities"><span class="ms">apps</span><span class="dirlabel">Communities</span></button>
+    <select id="rsort" aria-label="Sort"><option>hot</option><option>new</option><option>top</option><option>rising</option><option>controversial</option></select>
+    <select id="rtime" aria-label="Time range" title="Used with top/controversial">
+      <option value="hour">Past hour</option><option value="day" selected>Today</option><option value="week">This week</option>
+      <option value="month">This month</option><option value="year">This year</option><option value="all">All time</option>
+    </select>
+  </div>
+  <div id="limited" class="limited" hidden>Limited mode: Reddit has blocked its full data for apps without an approved key, so Reddit Studio is reading Reddit's RSS feeds. Posts, links, images and comments work; scores, vote counts and nested replies aren't available.</div>
+  <div class="chips" id="chips"></div>
+  <div class="cols" id="cols">
+    <div id="feedwrap">
+      <div class="feedhead">
+        <h2 id="feedtitle">r/popular</h2>
+        <div class="seg" id="filter" title="Show only">
+          <button data-f="all" class="on">All</button><button data-f="image" title="Images & galleries"><span class="ms" data-fb="Img">image</span></button>
+          <button data-f="video" title="Videos & GIFs"><span class="ms" data-fb="Vid">movie</span></button><button data-f="text" title="Text posts"><span class="ms" data-fb="Text">notes</span></button>
+          <button data-f="link" title="Links"><span class="ms" data-fb="Link">link</span></button>
+        </div>
+        <div class="seg" id="layout">
+          <button data-l="list" class="on" title="List"><span class="ms" data-fb="List">view_agenda</span></button>
+          <button data-l="grid" title="Grid"><span class="ms" data-fb="Grid">grid_view</span></button>
+        </div>
+        <div class="menuwrap">
+          <button id="subtools" title="Analyze this feed in Tools"><span class="ms" data-fb="Analyze ▾">insights</span></button>
+          <div class="menu" id="submenu"></div>
+        </div>
+      </div>
+      <div id="feed"></div>
+      <div id="feedfoot"></div>
+    </div>
+    <div id="detail"><div class="dempty"><div><span class="ms" style="font-size:48px">forum</span><p>Pick a post to read it here.<br><span style="font-size:12px">Keys: <b>j</b>/<b>k</b> move · <b>Enter</b> open · <b>Esc</b> close</span></p></div></div></div>
+  </div>
+</section>
+
+<!-- ================= TOOLS ================= -->
+<section id="tools" class="view">
+  <aside>
+    <div class="top"><input id="tsearch" placeholder="Search tools…" aria-label="Search tools"></div>
+    <nav id="nav"></nav>
+  </aside>
+  <main>
+    <div class="tcard">
+      <h2 id="title" style="margin:0 0 4px"></h2>
+      <p id="desc" class="muted" style="margin:0 0 14px"></p>
+      <form id="form" onsubmit="return false"></form>
+      <div class="tactions">
+        <button id="run" class="primary"><span class="ms">play_arrow</span>Run</button>
+        <button id="copy" hidden><span class="ms">content_copy</span>Copy</button>
+        <button id="dl" hidden><span class="ms">download</span>Download</button>
+      </div>
+    </div>
+    <div class="tcard" id="result"></div>
+  </main>
+</section>
+<div class="modalbg" id="phonemodal" hidden>
+  <div class="modal" role="dialog" aria-labelledby="phonetitle">
+    <div style="display:flex;align-items:center;gap:8px"><h2 id="phonetitle" style="margin:0;flex:1;font-size:18px">Use on your phone</h2>
+      <button class="ghost" id="phoneclose" aria-label="Close">✕</button></div>
+    <div id="phonebody"></div>
+  </div>
+</div>
+<div class="modalbg" id="aboutmodal" hidden>
+  <div class="modal" role="dialog" aria-labelledby="abouttitle">
+    <div style="display:flex;align-items:center;gap:10px"><img src="/static/icon.svg" alt="" width="36" height="36" style="border-radius:9px">
+      <div style="flex:1"><h2 id="abouttitle" style="margin:0;font-size:18px">Reddit Studio</h2><div class="muted" id="aboutver" style="font-size:13px"></div></div>
+      <button class="ghost" id="aboutclose" aria-label="Close">✕</button></div>
+    <div id="aboutbody" style="margin-top:12px"></div>
+  </div>
+</div>
+<div class="modalbg" id="acctmodal" hidden>
+  <div class="modal" role="dialog" aria-labelledby="accttitle">
+    <div style="display:flex;align-items:center;gap:8px"><h2 id="accttitle" style="margin:0;flex:1;font-size:18px">Reddit account</h2>
+      <button class="ghost" id="acctclose" aria-label="Close">✕</button></div>
+    <div id="acctbody"></div>
+  </div>
+</div>
+<div class="modalbg" id="dirmodal" hidden>
+  <div class="modal wide" role="dialog" aria-labelledby="dirtitle">
+    <div style="display:flex;align-items:center;gap:8px"><h2 id="dirtitle" style="margin:0;flex:1;font-size:18px">Communities</h2>
+      <button class="ghost" id="dirclose" aria-label="Close">✕</button></div>
+    <form id="addfav" class="addr" style="margin:12px 0"><input id="favinput" placeholder="Add any subreddit to favorites, e.g. woodworking" autocomplete="off"><button class="primary" type="submit">Add ★</button></form>
+    <div id="dirbody"></div>
+    <div class="dirset">
+      <label><input type="checkbox" id="adult"> Show 18+ (explicit) communities and posts</label>
+      <label><input type="checkbox" id="blur"> Blur 18+ images and video until clicked</label>
+      <p class="muted" style="font-size:12px;margin:6px 0 0">In some places Reddit requires age verification and a signed-in account to see 18+ communities, so those may come back empty here.</p>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ls = { get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+             set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+const icon = n => `<span class="ms" aria-hidden="true">${n}</span>`;
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 1800); }
+function num(n) { n = Number(n) || 0; return Math.abs(n) >= 1e6 ? (n/1e6).toFixed(1)+"m" : Math.abs(n) >= 1e3 ? (n/1e3).toFixed(1)+"k" : String(n); }
+function ago(t) { const s = Date.now()/1000 - t; if (s < 60) return "now"; if (s < 3600) return Math.floor(s/60)+"m"; if (s < 86400) return Math.floor(s/3600)+"h";
+  if (s < 2592000) return Math.floor(s/86400)+"d"; if (s < 31536000) return Math.floor(s/2592000)+"mo"; return Math.floor(s/31536000)+"y"; }
+async function getJSON(url, opts) {
+  const r = await fetch(url, opts); let j;
+  try { j = await r.json(); } catch { throw new Error("The app server didn't answer. Is Reddit Studio still running?"); }
+  if (!j.ok) throw new Error(j.error || "Something went wrong."); return j.result;
+}
+function copyText(t) {
+  const fallback = () => { const a = Object.assign(document.createElement("textarea"), { value: t }); a.style.position = "fixed"; a.style.opacity = "0";
+    document.body.appendChild(a); a.select(); let ok = false; try { ok = document.execCommand("copy"); } catch {} a.remove(); toast(ok ? "Copied" : "Couldn't copy"); };
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t).then(() => toast("Copied"), fallback); else fallback();
+}
+
+/* icon font: show icons once loaded, else fall back to short text labels */
+(document.fonts && document.fonts.load ? document.fonts.load('20px "Material Symbols Rounded"', "home") : Promise.reject())
+  .then(f => document.documentElement.classList.add(f && f.length ? "icons-ok" : "icons-off"))
+  .catch(() => document.documentElement.classList.add("icons-off"));
+setTimeout(() => { if (!document.documentElement.classList.contains("icons-ok")) document.documentElement.classList.add("icons-off"); }, 4000);
+
+/* ---------------- theme ---------------- */
+function setTheme(t, keepAccent) {
+  document.documentElement.dataset.theme = t; ls.set("rs_theme", t);
+  if (!keepAccent) { document.documentElement.style.removeProperty("--accent"); ls.set("rs_accent", null); }
+  $("#theme").value = t;
+  const cs = getComputedStyle(document.documentElement);
+  $("#accent").value = cs.getPropertyValue("--accent").trim().slice(0, 7);
+  document.querySelector('meta[name=theme-color]').content = cs.getPropertyValue("--panel").trim();
+}
+$("#theme").onchange = e => setTheme(e.target.value);
+$("#accent").oninput = e => { document.documentElement.style.setProperty("--accent", e.target.value); ls.set("rs_accent", e.target.value); };
+setTheme(ls.get("rs_theme", "midnight"), true);
+if (ls.get("rs_accent")) { document.documentElement.style.setProperty("--accent", ls.get("rs_accent")); $("#accent").value = ls.get("rs_accent"); }
+
+/* ---------------- views + routing ----------------
+   #/r/name  #/u/name  #/comments/id  #/tools  #/tools/<toolId> */
+function showView(v) {
+  $("#reader").classList.toggle("on", v === "reader"); $("#tools").classList.toggle("on", v === "tools");
+  $("#tab-reader").classList.toggle("on", v === "reader"); $("#tab-tools").classList.toggle("on", v === "tools");
+}
+$("#tab-reader").onclick = () => { location.hash = feed.target ? "#/" + feed.target : "#/r/popular"; };
+$("#tab-tools").onclick = () => { location.hash = "#/tools" + (current ? "/" + current.id : ""); };
+async function route() {
+  const h = decodeURIComponent(location.hash.replace(/^#\/?/, ""));
+  let m;
+  if (h.startsWith("tools")) { showView("tools"); await toolsReady; const id = h.split("/")[1]; if (id && (!current || current.id !== id)) select(id); return; }
+  showView("reader");
+  if ((m = h.match(/^comments\/([a-z0-9]+)/i))) { if (!feed.loaded) loadFeed("r/popular"); openPost(m[1]); return; }
+  if ((m = h.match(/^(home|saved)$/))) { if (m[1] !== feed.target || !feed.loaded) loadFeed(m[1]); else closeDetailOnMobile(); return; }
+  if ((m = h.match(/^(r|u)\/([A-Za-z0-9_+\-]+)/))) { const t = m[1] + "/" + m[2]; if (t !== feed.target || !feed.loaded) loadFeed(t); else closeDetailOnMobile(); return; }
+  location.replace("#/r/popular");
+}
+window.addEventListener("hashchange", route);
+
+/* ---------------- communities directory ---------------- */
+const DIRECTORY = {
+  "Popular": ["popular","all","AskReddit","worldnews","news","todayilearned","explainlikeimfive","mildlyinteresting","Showerthoughts","NoStupidQuestions"],
+  "Funny & memes": ["funny","memes","me_irl","ProgrammerHumor","BrandNewSentence","nottheonion","facepalm","wholesomememes","dankmemes"],
+  "Pics & video": ["pics","videos","gifs","interestingasfuck","nextfuckinglevel","oddlysatisfying","EarthPorn","itookapicture","Damnthatsinteresting"],
+  "Tech": ["technology","programming","python","javascript","webdev","apple","MacOS","Android","gadgets","buildapc","selfhosted","homelab","linux"],
+  "AI": ["artificial","MachineLearning","LocalLLaMA","ChatGPT","ClaudeAI","singularity","StableDiffusion"],
+  "Gaming": ["gaming","pcgaming","PS5","NintendoSwitch","XboxSeriesX","Minecraft","leagueoflegends","Steam","patientgamers","GamingLeaksAndRumours"],
+  "Sports": ["sports","nba","nfl","soccer","baseball","hockey","MMA","formula1","CFB","golf"],
+  "Music, movies & TV": ["Music","hiphopheads","popheads","movies","television","anime","marvelstudios","netflix","horror"],
+  "Science & learning": ["science","space","askscience","Futurology","dataisbeautiful","history","AskHistorians","LifeProTips","YouShouldKnow"],
+  "Money & work": ["personalfinance","investing","stocks","wallstreetbets","CryptoCurrency","Entrepreneur","smallbusiness","careerguidance","cscareerquestions"],
+  "Life & hobbies": ["food","Cooking","recipes","Fitness","malefashionadvice","femalefashionadvice","travel","DIY","HomeImprovement","cars","Sneakers","photography"],
+  "Animals & wholesome": ["aww","cats","dogs","AnimalsBeingDerps","rarepuppers","MadeMeSmile","HumansBeingBros","BeAmazed"],
+  "Advice & stories": ["AmItheAsshole","relationship_advice","tifu","TrueOffMyChest","AskMen","AskWomen","UnresolvedMysteries","nosleep"],
+};
+const ADULT = ["nsfw","NSFW_GIF","nsfw_gifs","RealGirls","gonewild","Amateur","porn","holdthemoan","NSFW_HTML5","OnOff"];
+const ADULT_SET = new Set(ADULT.map(s => s.toLowerCase()));
+const settings = { adult: ls.get("rs_adult", false), blur: ls.get("rs_blur", true) };
+const favs = () => ls.get("rs_favs", []);
+function toggleFav(s) { const f = favs(); const i = f.findIndex(x => x.toLowerCase() === s.toLowerCase());
+  if (i >= 0) f.splice(i, 1); else f.unshift(s); ls.set("rs_favs", f.slice(0, 40)); renderDirectory(); renderChips(); }
+const isAdult = p => p.nsfw || ADULT_SET.has(String(p.subreddit).toLowerCase());
+function dirChip(s) { const on = favs().some(x => x.toLowerCase() === s.toLowerCase());
+  return `<span class="chip"><a href="#/r/${esc(s)}" data-go style="color:inherit;text-decoration:none">r/${esc(s)}</a><button class="star ${on ? "on" : ""}" data-star="${esc(s)}" title="${on ? "Remove from" : "Add to"} favorites">${on ? "★" : "☆"}</button></span>`; }
+function renderDirectory() {
+  const f = favs();
+  let html = f.length ? `<div class="dircat">★ Favorites</div><div class="dirgrid">${f.map(dirChip).join("")}</div>` : "";
+  for (const [cat, subs] of Object.entries(DIRECTORY)) html += `<div class="dircat">${esc(cat)}</div><div class="dirgrid">${subs.map(dirChip).join("")}</div>`;
+  if (settings.adult) html += `<div class="dircat">18+ <span class="adulttag">EXPLICIT</span></div><div class="dirgrid">${ADULT.map(dirChip).join("")}</div>`;
+  $("#dirbody").innerHTML = html;
+}
+$("#dirbtn").onclick = () => { renderDirectory(); $("#adult").checked = settings.adult; $("#blur").checked = settings.blur; $("#dirmodal").hidden = false; };
+$("#dirclose").onclick = () => ($("#dirmodal").hidden = true);
+$("#dirmodal").onclick = e => {
+  if (e.target.id === "dirmodal" || e.target.closest("[data-go]")) $("#dirmodal").hidden = true;
+  const st = e.target.closest("[data-star]"); if (st) { e.preventDefault(); toggleFav(st.dataset.star); }
+};
+$("#addfav").onsubmit = e => { e.preventDefault(); const v = $("#favinput").value.trim().replace(/^\/?r\//i, "");
+  if (!/^[A-Za-z0-9_]{2,21}$/.test(v)) return toast("That doesn't look like a subreddit name");
+  if (!favs().some(x => x.toLowerCase() === v.toLowerCase())) toggleFav(v); $("#favinput").value = ""; toast("Added r/" + v); };
+$("#adult").onchange = e => {
+  if (e.target.checked && !confirm("Show explicit 18+ communities and posts? Only continue if you are 18 or older.")) { e.target.checked = false; return; }
+  settings.adult = e.target.checked; ls.set("rs_adult", settings.adult); renderDirectory(); renderFeed();
+};
+$("#blur").onchange = e => { settings.blur = e.target.checked; ls.set("rs_blur", settings.blur); renderFeed(); };
+document.addEventListener("keydown", e => { if (e.key === "Escape") $("#dirmodal").hidden = true; });
+
+/* ---------------- version, About & updates ---------------- */
+let upd = {};
+async function refreshUpdate() {
+  try { upd = await getJSON("/api/update"); } catch { return; }
+  const b = $("#ver");
+  b.textContent = upd.available ? `Update available: ${upd.latest}` : `v${upd.current}`;
+  b.classList.toggle("avail", !!upd.available);
+  if (!$("#aboutmodal").hidden) aboutRender();
+}
+function aboutRender() {
+  const u = upd, b = $("#aboutbody");
+  $("#aboutver").textContent = `Version ${u.current}` + (u.repo ? ` · ${u.repo}` : "");
+  let html = "";
+  if (u.installing) html += `<p><span class="spin"></span> Installing the update… Reddit Studio restarts by itself when it's done.</p>`;
+  else if (u.result && u.result.ok === false) html += `<p class="error" style="white-space:pre-wrap">${esc(u.result.error)}</p>`;
+  if (!u.installing && u.available) html += `<p><b>Version ${esc(u.latest)} is available.</b></p>${u.notes ? `<div class="notes">${esc(u.notes)}</div>` : ""}
+    <p><button class="primary" id="doupdate">${icon("system_update")}Update now</button></p>`;
+  else if (!u.installing && u.configured && !u.error) html += `<p>You're up to date.</p>`;
+  if (u.error) html += `<p class="muted">${esc(u.error)}</p>`;
+  html += `<div class="dirset">
+      <label><input type="checkbox" id="autoupd" ${u.auto_install ? "checked" : ""} ${u.configured ? "" : "disabled"}> Install updates automatically</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><button id="checkupd" ${u.configured ? "" : "disabled"}>${icon("refresh")}Check for updates</button>
+      ${u.repo ? `<a href="https://github.com/${esc(u.repo)}/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer"><button>${icon("history")}Release notes</button></a>` : ""}</div>
+      <p class="muted" style="font-size:12px;margin:8px 0 0">${u.checked_at ? "Last checked " + ago(u.checked_at) + " ago. " : ""}More options: menu bar icon › Control Center.</p>
+    </div>`;
+  b.innerHTML = html;
+  if ($("#doupdate")) $("#doupdate").onclick = installUpdate;
+  if ($("#checkupd")) $("#checkupd").onclick = async () => { $("#checkupd").disabled = true;
+    try { upd = await getJSON("/api/update/check", { method: "POST", headers: { "X-Reddit-Studio": "1" } }); } catch (e) { toast(e.message); }
+    await refreshUpdate(); aboutRender(); toast(upd.available ? `Version ${upd.latest} is available` : upd.error ? "Couldn't check" : "You're up to date"); };
+  $("#autoupd").onchange = async e => { try { await getJSON("/api/update/settings", { method: "POST",
+    headers: { "X-Reddit-Studio": "1", "Content-Type": "application/json" }, body: JSON.stringify({ auto_install: e.target.checked }) }); toast("Saved"); } catch (err) { toast(err.message); } };
+}
+async function installUpdate() {
+  const from = upd.current;
+  try { upd = await getJSON("/api/update/install", { method: "POST", headers: { "X-Reddit-Studio": "1" } }); } catch (e) { return toast(e.message); }
+  aboutRender();
+  const t0 = Date.now();
+  const poll = setInterval(async () => {          // wait for the new version to come back up, then reload
+    try {
+      const v = await getJSON("/api/version");
+      if (v.version !== from) { clearInterval(poll); toast("Updated to " + v.version); setTimeout(() => location.reload(), 600); return; }
+      const s = await getJSON("/api/update"); upd = s; aboutRender();
+      if (!s.installing && s.result && s.result.ok === false) clearInterval(poll);
+    } catch { /* restarting */ }
+    if (Date.now() - t0 > 600000) clearInterval(poll);
+  }, 2000);
+}
+$("#ver").onclick = async () => { $("#aboutmodal").hidden = false; aboutRender(); await refreshUpdate(); aboutRender(); };
+$("#aboutclose").onclick = () => ($("#aboutmodal").hidden = true);
+$("#aboutmodal").onclick = e => { if (e.target.id === "aboutmodal") $("#aboutmodal").hidden = true; };
+document.addEventListener("keydown", e => { if (e.key === "Escape") $("#aboutmodal").hidden = true; });
+refreshUpdate(); setInterval(refreshUpdate, 300000);
+
+/* ---------------- account (signed-in mode via rdt-cli) ---------------- */
+let account = { available: false };
+async function refreshAccount() {
+  try { account = await getJSON("/api/status"); } catch { return; }
+  const b = $("#acct");
+  b.classList.toggle("on", account.available); b.classList.toggle("warn", !account.available && (account.rss || !!account.error));
+  $("#acctlabel").textContent = account.available ? `u/${account.user || "signed in"}` : account.rss ? "Limited mode" : "Public mode";
+  b.title = account.error || (account.available ? "Signed in with rdt-cli" : "Not signed in");
+  renderChips();
+}
+function acctRender() {
+  const a = account, b = $("#acctbody");
+  if (a.available) {
+    b.innerHTML = `<p>Signed in as <b>u/${esc(a.user || "?")}</b> using your saved <code>rdt login</code>. You get full data: scores, nested comments, sign-in-only communities, plus your <b>Home</b> feed and <b>Saved</b> posts.</p>
+      <p class="muted" style="font-size:13px">Reddit Studio only reads with this sign-in; it never posts, votes, or messages.</p>
+      ${a.error ? `<p class="error">${esc(a.error)}</p>` : ""}
+      <button id="signoff">${icon("logout")}Use public data instead</button>`;
+    $("#signoff").onclick = () => toggleSignin("off");
+  } else if (a.off && a.cred_file) {
+    b.innerHTML = `<p>Your Reddit sign-in is saved but switched off, so Reddit Studio is using public data.</p><button class="primary" id="signon">${icon("login")}Use my sign-in again</button>`;
+    $("#signon").onclick = () => toggleSignin("on");
+  } else {
+    b.innerHTML = `<p>${a.rss ? "Reddit is blocking public data, so you're in <b>limited mode</b> (RSS feeds: no scores or nested replies)." : "You're using public data."}</p>
+      <p>To sign in, open <b>Terminal</b> and type these, one at a time:</p>
+      <pre class="out">uv tool install rdt-cli
+rdt login</pre>
+      <p class="muted" style="font-size:13px">Log into Reddit in Chrome first, ideally with a <b>secondary account</b>. <code>rdt login</code> copies that sign-in (macOS will ask for your Mac password to let it read Chrome's cookies). Then click the button below. Reddit Studio reinstalls itself with a newer Python the next time you run the installer, if needed.</p>
+      ${a.error ? `<p class="error">${esc(a.error)}</p>` : ""}
+      <button class="primary" id="recheck">${icon("refresh")}I've signed in, check again</button>`;
+    $("#recheck").onclick = async () => { await refreshAccount(); acctRender(); toast(account.available ? "Signed in" : "Not signed in yet"); };
+  }
+}
+async function toggleSignin(v) {
+  try { await getJSON("/api/signin/" + v, { method: "POST", headers: { "X-Reddit-Studio": "1" } }); } catch (e) { return toast(e.message); }
+  await refreshAccount(); acctRender(); if (feed.target) loadFeed(feed.target);
+}
+$("#acct").onclick = async () => { await refreshAccount(); acctRender(); $("#acctmodal").hidden = false; };
+$("#acctclose").onclick = () => ($("#acctmodal").hidden = true);
+$("#acctmodal").onclick = e => { if (e.target.id === "acctmodal") $("#acctmodal").hidden = true; };
+document.addEventListener("keydown", e => { if (e.key === "Escape") $("#acctmodal").hidden = true; });
+refreshAccount(); setInterval(refreshAccount, 60000);
+
+/* ---------------- reader: feed ---------------- */
+const feed = { target: "", posts: [], after: null, loaded: false, busy: false, filter: "all", req: 0 };
+let openId = null, selIdx = -1;
+const rsort = $("#rsort"), rtime = $("#rtime");
+rsort.value = ls.get("rs_sort", "hot"); rtime.value = ls.get("rs_time", "day");
+function syncTime() { rtime.style.display = /top|controversial/.test(rsort.value) ? "" : "none"; }
+syncTime();
+rsort.onchange = () => { ls.set("rs_sort", rsort.value); syncTime(); loadFeed(feed.target); };
+rtime.onchange = () => { ls.set("rs_time", rtime.value); loadFeed(feed.target); };
+
+$("#addrform").onsubmit = async e => {
+  e.preventDefault();
+  const v = $("#addr").value.trim(); if (!v) return;
+  const post = v.match(/comments\/([a-z0-9]+)|redd\.it\/([a-z0-9]+)/i);
+  if (post) { location.hash = "#/comments/" + (post[1] || post[2]); return; }
+  const u = v.match(/(?:^|\/)(?:u|user)\/([A-Za-z0-9_\-]+)/), r = v.match(/(?:^|\/)r\/([A-Za-z0-9_+\-]+)/);
+  if (/\/s\/[A-Za-z0-9]+/.test(v)) { toast("Share links (/s/) can't open here. Copy the full link instead."); return; }
+  if (u) location.hash = "#/u/" + u[1];
+  else if (r) location.hash = "#/r/" + r[1];
+  else if (/^[A-Za-z0-9_+\-]+$/.test(v)) location.hash = "#/r/" + v;
+  else toast("Type a subreddit, u/username, or a Reddit link");
+};
+
+function renderChips() {
+  const recent = ls.get("rs_recent", []);
+  const base = [...(account.available ? ["home", "saved"] : []), "r/popular", "r/all", "r/pics", "r/videos", "r/AskReddit", "r/technology"];
+  const fav = favs().map(s => "r/" + s);
+  const list = [...new Set([...fav, ...recent, ...base])].filter(t => settings.adult || !ADULT_SET.has(t.slice(2).toLowerCase())).slice(0, 18);
+  const label = t => t === "home" ? "🏠 Home" : t === "saved" ? "🔖 Saved" : (fav.includes(t) ? "★ " : "") + t;
+  $("#chips").innerHTML = list.filter(t => account.available || (t !== "home" && t !== "saved"))
+    .map(t => `<button class="chip ${t === feed.target ? "on" : ""}" data-t="${esc(t)}">${esc(label(t))}</button>`).join("");
+}
+$("#chips").onclick = e => { const b = e.target.closest("[data-t]"); if (b) location.hash = "#/" + b.dataset.t; };
+function remember(t) { const r = ls.get("rs_recent", []).filter(x => x !== t); r.unshift(t); ls.set("rs_recent", r.slice(0, 8)); }
+
+async function loadFeed(target, more) {
+  const req = ++feed.req;
+  if (!more) {
+    feed.target = target; feed.posts = []; feed.after = null; feed.loaded = true; selIdx = -1;
+    $("#feedtitle").textContent = target; $("#addr").value = target; renderChips();
+    $("#feed").innerHTML = ""; $("#feedwrap").scrollTop = 0;
+  }
+  feed.busy = true;
+  $("#feedfoot").innerHTML = `<div class="empty"><span class="spin"></span> Loading ${esc(target)}…</div>`;
+  try {
+    const q = new URLSearchParams({ target, sort: rsort.value, t: rtime.value });
+    if (more && feed.after) q.set("after", feed.after);
+    const res = await getJSON("/api/reader/listing?" + q);
+    if (req !== feed.req) return;
+    if (res.open_post) { location.hash = "#/comments/" + res.open_post; return; }
+    feed.posts.push(...res.posts); feed.after = res.after; $("#limited").hidden = !res.limited;
+    $("#feedtitle").textContent = res.title;
+    if (!more) remember(res.kind === "home" || res.kind === "saved" ? target : res.title), renderChips();
+    renderFeed();
+  } catch (err) {
+    if (req !== feed.req) return;
+    $("#feedfoot").innerHTML = `<div class="empty error">${esc(err.message)}<br><br><button id="retry"><span class="ms">refresh</span>Try again</button></div>`;
+    $("#retry").onclick = () => loadFeed(target, more);
+  } finally { if (req === feed.req) feed.busy = false; }
+}
+
+const typeIcon = { video: "play_circle", gallery: "photo_library", image: "image", text: "notes", link: "link" };
+function matches(p) { if (!settings.adult && isAdult(p)) return false; const f = feed.filter, t = p.media.type;
+  return f === "all" || (f === "image" && (t === "image" || t === "gallery")) || f === t; }
+function renderFeed() {
+  const vis = feed.posts.filter(matches);
+  $("#feed").innerHTML = vis.map(p => {
+    const hide = (isAdult(p) && settings.blur) || p.spoiler;
+    const th = p.thumb ? `style="background-image:url('${esc(p.thumb)}')"` : "";
+    return `<article class="card ${p.id === openId ? "sel" : ""}" data-id="${esc(p.id)}" tabindex="0">
+      <div class="th ${hide && p.thumb ? "blurred" : ""}" ${th}>${p.thumb ? "" : icon(typeIcon[p.media.type] || "article")}
+        ${p.thumb && p.media.type !== "image" ? `<span class="badge">${icon(typeIcon[p.media.type])}</span>` : ""}</div>
+      <div class="cb">
+        <div class="meta"><b>r/${esc(p.subreddit)}</b><span>u/${esc(p.author)}</span><span>${ago(p.created_utc)}</span>
+          ${p.stickied ? '<span class="tag pin">PINNED</span>' : ""}${isAdult(p) ? '<span class="tag nsfw">NSFW</span>' : ""}${p.spoiler ? '<span class="tag spoiler">SPOILER</span>' : ""}</div>
+        <h3>${esc(p.title)}</h3>
+        <div class="meta">${p.score == null ? "" : `<span><span class="ms" data-fb="▲">arrow_upward</span>${num(p.score)}</span><span><span class="ms" data-fb="💬">chat_bubble</span>${num(p.comments)}</span>`}
+          ${p.flair ? `<span class="flair">${esc(p.flair)}</span>` : ""}<span>${esc(p.domain)}</span></div>
+      </div></article>`;
+  }).join("") || (feed.posts.length ? `<div class="empty">${!settings.adult && feed.posts.every(isAdult)
+      ? "This community is 18+. Turn on 18+ content under Communities to see it." : "No posts of that type here. Try another filter, or load more."}</div>` : "");
+  $("#feedfoot").innerHTML = feed.after
+    ? `<button class="loadmore" id="more" style="width:calc(100% - 16px)"><span class="ms">expand_more</span>Load more</button>`
+    : feed.posts.length ? '<div class="empty">End of the list.</div>' : '<div class="empty">Nothing here.</div>';
+  if ($("#more")) $("#more").onclick = () => loadFeed(feed.target, true);
+}
+$("#feed").onclick = e => { const c = e.target.closest(".card"); if (c) location.hash = "#/comments/" + c.dataset.id; };
+$("#feedwrap").addEventListener("scroll", () => {
+  const w = $("#feedwrap"); if (feed.after && !feed.busy && w.scrollTop + w.clientHeight > w.scrollHeight - 400) loadFeed(feed.target, true);
+});
+$("#filter").onclick = e => { const b = e.target.closest("[data-f]"); if (!b) return;
+  feed.filter = b.dataset.f; $$("#filter button").forEach(x => x.classList.toggle("on", x === b)); renderFeed(); };
+function setLayout(l) { ls.set("rs_layout", l); $("#feed").classList.toggle("grid", l === "grid"); $("#cols").classList.toggle("wide", l === "grid");
+  $$("#layout button").forEach(x => x.classList.toggle("on", x.dataset.l === l)); }
+$("#layout").onclick = e => { const b = e.target.closest("[data-l]"); if (b) setLayout(b.dataset.l); };
+setLayout(ls.get("rs_layout", "list"));
+
+/* feed -> tools menu */
+const SUB_TOOLS = [["sub_info","info","Subreddit info"],["words","text_fields","Word frequency"],["top_posters","group","Most active posters"],
+  ["post_types","pie_chart","Post type mix"],["times","schedule","Best posting hours"],["sub_media","perm_media","All media links"],
+  ["dupes","content_copy","Repost finder"],["digest","summarize","Markdown digest"],["csv","table_view","Export to CSV"]];
+const USER_TOOLS = [["user","person","User profile"],["user_hours","schedule","Activity hours"],["user_items","list","Posts & comments"]];
+$("#subtools").onclick = e => {
+  e.stopPropagation();
+  const [kind, name] = (feed.target || "r/popular").split("/");
+  const list = kind === "u" ? USER_TOOLS : SUB_TOOLS;
+  $("#submenu").innerHTML = `<div class="muted" style="font-size:12px;padding:4px 10px">Open ${esc(feed.target)} in Tools</div>` +
+    list.map(([id, ic, label]) => `<button data-tool="${id}">${icon(ic)}${label}</button>`).join("");
+  $("#submenu").classList.toggle("open");
+  $("#submenu").onclick = ev => { const b = ev.target.closest("[data-tool]"); if (!b) return; closeMenus();
+    sendToTool(b.dataset.tool, kind === "u" ? { name } : { sub: name, sort: rsort.value, time: rtime.value }); };
+};
+function closeMenus() { $$(".menu.open").forEach(m => m.classList.remove("open")); }
+document.addEventListener("click", closeMenus);
+
+/* ---------------- reader: post detail ---------------- */
+function sanitize(html) {
+  if (window.DOMPurify) return DOMPurify.sanitize(html, { FORBID_TAGS: ["style", "form", "input"], FORBID_ATTR: ["style"] });
+  const t = document.createElement("template"); t.innerHTML = html;      // inert: nothing runs
+  return esc(t.content.textContent).replace(/\n/g, "<br>");
+}
+function wireLinks(root) {
+  root.querySelectorAll("a[href]").forEach(a => {
+    const href = a.getAttribute("href");
+    const inApp = href.match(/^(?:https?:\/\/(?:www\.|old\.|new\.)?reddit\.com)?\/(r|u|user)\/([A-Za-z0-9_+\-]+)\/?(?:comments\/([a-z0-9]+))?/i);
+    if (inApp) {
+      a.href = inApp[3] ? "#/comments/" + inApp[3] : "#/" + (inApp[1] === "r" ? "r" : "u") + "/" + inApp[2];
+      a.title = "Open in Reader";
+    } else { a.target = "_blank"; a.rel = "noopener noreferrer"; }
+  });
+  root.querySelectorAll(".md-spoiler-text").forEach(s => s.onclick = () => s.classList.add("shown"));
+}
+function mediaHTML(p) {
+  const m = p.media, hide = (isAdult(p) && settings.blur) || p.spoiler;
+  const cover = hide ? `<div class="reveal" data-reveal>${icon("visibility")} ${isAdult(p) ? "NSFW" : "Spoiler"}: click to show</div>` : "";
+  const blur = hide ? ' class="blurred"' : "";
+  if (m.type === "video" && m.video) {
+    return `<div class="media"><video${blur} controls playsinline preload="metadata" ${m.video.gif ? "loop muted autoplay" : ""}
+      poster="${esc(p.thumb)}" data-hls="${esc(m.video.hls || "")}" data-mp4="${esc(m.video.mp4)}"></video>${cover}</div>`;
+  }
+  if (m.type === "gallery" && m.images.length) {
+    return `<div class="media"><div class="gallery"${blur}>${m.images.map(u => `<img loading="lazy" src="${esc(u)}" alt="">`).join("")}</div>
+      <span class="gcount">${m.images.length} images · scroll →</span>${cover}</div>`;
+  }
+  if (m.type === "image" && m.images[0]) return `<div class="media"><img${blur} src="${esc(m.images[0])}" alt="">${cover}</div>`;
+  if (m.type === "link" && m.link && !/reddit\.com/.test(p.domain)) {
+    return `<a class="linkcard" href="${esc(m.link)}" target="_blank" rel="noopener noreferrer">${p.thumb ? `<img src="${esc(p.thumb)}" alt="">` : icon("link")}
+      <div><b>${esc(p.domain)}</b><br><span class="muted" style="font-size:12px">${esc(m.link)}</span></div></a>`;
+  }
+  return "";
+}
+function startVideo(root) {
+  const v = root.querySelector("video[data-mp4]"); if (!v) return;
+  const hls = v.dataset.hls, mp4 = v.dataset.mp4;
+  if (hls && window.Hls && Hls.isSupported()) {
+    const h = new Hls(); h.loadSource(hls); h.attachMedia(v);
+    h.on(Hls.Events.ERROR, (_, d) => { if (d.fatal) { h.destroy(); v.src = mp4; } });
+    v._hls = h;
+  } else if (hls && v.canPlayType("application/vnd.apple.mpegurl")) {
+    v.src = hls; v.onerror = () => { v.onerror = null; v.src = mp4; };      // Safari plays HLS (with sound) natively
+  } else v.src = mp4;
+}
+function stopVideo() { const v = $("#detail video"); if (v) { v.pause(); if (v._hls) v._hls.destroy(); } }
+
+const POST_TOOLS = [["post","forum","Top comments (table)"],["thread_md","description","Save thread as Markdown"],
+  ["thread_search","manage_search","Search inside thread"],["thread_stats","bar_chart","Thread stats"],["post_media","perm_media","Media download links"]];
+
+function cmtHTML(list, depth) {
+  return list.map(c => {
+    if (c.more) return `<div class="more muted">${c.more} more repl${c.more === 1 ? "y" : "ies"} on Reddit</div>`;
+    return `<div class="cmt" style="border-left-color:hsl(${(depth * 47) % 360} 45% 45% / .55)">
+      <div class="ch"><button class="tog" title="Collapse">[–]</button><b>u/${esc(c.author)}</b>${c.is_op ? '<span class="op">OP</span>' : ""}
+        ${c.flair ? `<span class="flair">${esc(c.flair)}</span>` : ""}${c.score == null ? "" : `<span><span class="ms" data-fb="▲">arrow_upward</span>${num(c.score)}</span>`}<span>${ago(c.created_utc)}</span>
+        ${c.stickied ? '<span class="tag pin">PINNED</span>' : ""}</div>
+      <div class="cbody md">${sanitize(c.body_html)}</div>
+      <div class="kids">${cmtHTML(c.children || [], depth + 1)}</div></div>`;
+  }).join("");
+}
+
+let threadReq = 0;
+async function openPost(id, csort) {
+  const req = ++threadReq;
+  stopVideo(); openId = id;
+  $$(".card").forEach(c => c.classList.toggle("sel", c.dataset.id === id));
+  $("#cols").classList.add("showdetail");
+  const d = $("#detail");
+  d.innerHTML = `<div class="dempty"><div><span class="spin"></span><p>Loading post…</p></div></div>`;
+  try {
+    const { post: p, comments, limited } = await getJSON(`/api/reader/thread?ref=${encodeURIComponent(id)}&sort=${csort || ls.get("rs_csort", "top")}`);
+    if (req !== threadReq) return;
+    $("#limited").hidden = !limited;
+    if (!settings.adult && isAdult(p)) {
+      d.innerHTML = `<div class="dempty"><div><p>This post is marked 18+.</p><button id="adultok">Show 18+ content…</button></div></div>`;
+      $("#adultok").onclick = () => { $("#dirbtn").click(); }; return;
+    }
+    d.innerHTML = `<div class="dwrap">
+      <div class="dtop"><button class="ghost backbtn" id="back">${icon("arrow_back")}Back</button>
+        <a href="#/r/${esc(p.subreddit)}"><b>r/${esc(p.subreddit)}</b></a><span class="muted">·</span>
+        <a href="#/u/${esc(p.author)}">u/${esc(p.author)}</a><span class="muted">· ${ago(p.created_utc)} ago</span>
+        ${p.nsfw ? '<span class="tag nsfw">NSFW</span>' : ""}${p.spoiler ? '<span class="tag spoiler">SPOILER</span>' : ""}
+        ${p.flair ? `<span class="flair">${esc(p.flair)}</span>` : ""}</div>
+      <h1 class="dtitle">${esc(p.title)}</h1>
+      <div class="meta">${p.score == null ? "" : `<span>${num(p.score)} points</span><span>${num(p.comments)} comments</span>`}<span>${esc(p.domain)}</span></div>
+      ${mediaHTML(p)}
+      ${p.body_html ? `<div class="md">${sanitize(p.body_html)}</div>` : ""}
+      <div class="actions">
+        <a href="${esc(p.url)}" target="_blank" rel="noopener noreferrer"><button>${icon("open_in_new")}Open on Reddit</button></a>
+        <button id="cp">${icon("link")}Copy link</button>
+        ${p.media.link && p.media.type !== "text" && !/reddit\.com/.test(p.domain) ? `<button id="cpm">${icon("content_copy")}Copy media link</button>` : ""}
+        <div class="menuwrap"><button id="toolbtn" class="primary">${icon("construction")}Send to tool ${icon("expand_more")}</button>
+          <div class="menu" id="toolmenu">${POST_TOOLS.map(([tid, ic, l]) => `<button data-tool="${tid}">${icon(ic)}${l}</button>`).join("")}</div></div>
+      </div>
+      <div class="chead"><h3>Comments</h3>
+        <select id="csort" aria-label="Comment sort">${["top","best","new","controversial","old","qa"].map(s => `<option ${s === (csort || ls.get("rs_csort","top")) ? "selected" : ""}>${s}</option>`).join("")}</select>
+        <button id="collapseall" class="ghost" title="Collapse all"><span class="ms" data-fb="Collapse all">unfold_less</span></button></div>
+      <div id="comments">${comments.length ? cmtHTML(comments, 0) : '<p class="muted">No comments yet.</p>'}</div>
+    </div>`;
+    d.scrollTop = 0;
+    wireLinks(d); startVideo(d);
+    d.querySelectorAll("[data-reveal]").forEach(r => r.onclick = () => { r.parentElement.querySelectorAll(".blurred").forEach(x => x.classList.remove("blurred")); r.remove(); });
+    $("#cp").onclick = () => copyText(p.url);
+    if ($("#cpm")) $("#cpm").onclick = () => copyText(p.media.link);
+    if ($("#back")) $("#back").onclick = () => history.length > 1 ? history.back() : (location.hash = "#/" + (feed.target || "r/popular"));
+    $("#toolbtn").onclick = e => { e.stopPropagation(); $("#toolmenu").classList.toggle("open"); };
+    $("#toolmenu").onclick = e => { const b = e.target.closest("[data-tool]"); if (b) { closeMenus(); sendToTool(b.dataset.tool, { ref: p.url }); } };
+    $("#csort").onchange = e => { ls.set("rs_csort", e.target.value); openPost(id, e.target.value); };
+    $("#collapseall").onclick = () => d.querySelectorAll("#comments > .cmt").forEach(c => c.classList.add("collapsed"));
+    $("#comments").onclick = e => { const t = e.target.closest(".tog"); if (!t) return;
+      const c = t.closest(".cmt"); c.classList.toggle("collapsed"); t.textContent = c.classList.contains("collapsed") ? "[+]" : "[–]"; };
+  } catch (err) {
+    if (req !== threadReq) return;
+    d.innerHTML = `<div class="dempty"><div class="error">${esc(err.message)}<br><br><button id="retryp">${icon("refresh")}Try again</button></div></div>`;
+    $("#retryp").onclick = () => openPost(id, csort);
+  }
+}
+function closeDetailOnMobile() { $("#cols").classList.remove("showdetail"); stopVideo(); }
+
+/* keyboard: j/k move, Enter open, Esc close, / focus address */
+document.addEventListener("keydown", e => {
+  if (!$("#reader").classList.contains("on") || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.target.closest("input,textarea,select,[contenteditable]")) { if (e.key === "Escape") e.target.blur(); return; }
+  const cards = $$("#feed .card");
+  if (e.key === "j" || e.key === "k") {
+    if (!cards.length) return;
+    selIdx = Math.max(0, Math.min(cards.length - 1, selIdx + (e.key === "j" ? 1 : -1)));
+    cards.forEach((c, i) => c.classList.toggle("sel", i === selIdx));
+    cards[selIdx].scrollIntoView({ block: "nearest" }); cards[selIdx].focus({ preventScroll: true });
+  } else if (e.key === "Enter" && selIdx >= 0 && cards[selIdx]) location.hash = "#/comments/" + cards[selIdx].dataset.id;
+  else if (e.key === "Escape") closeDetailOnMobile();
+  else if (e.key === "/") { e.preventDefault(); $("#addr").focus(); $("#addr").select(); }
+});
+
+/* ---------------- tools ---------------- */
+let tools = [], current = null, lastResult = null, resolveTools;
+const toolsReady = new Promise(r => (resolveTools = r));
+function renderNav(filter = "") {
+  const q = filter.toLowerCase(), groups = {};
+  for (const t of tools) if (!q || (t.name + t.description + t.category).toLowerCase().includes(q)) (groups[t.category] ||= []).push(t);
+  $("#nav").innerHTML = Object.entries(groups).map(([cat, items]) => `<div class="cat">${esc(cat)}</div>` +
+    items.map(t => `<button class="navitem ${current?.id === t.id ? "active" : ""}" data-id="${esc(t.id)}">${esc(t.name)}</button>`).join("")).join("");
+}
+$("#nav").onclick = e => { const b = e.target.closest("[data-id]"); if (b) location.hash = "#/tools/" + b.dataset.id; };
+$("#tsearch").oninput = e => renderNav(e.target.value);
+function field(p) {
+  const input = p.type === "select"
+    ? `<select name="${esc(p.key)}">${p.options.map(o => `<option ${o === p.default ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`
+    : `<input name="${esc(p.key)}" type="${p.type === "int" ? "number" : "text"}" value="${esc(p.default)}">`;
+  return `<label><span>${esc(p.label)}</span>${input}</label>`;
+}
+function select(id) {
+  current = tools.find(t => t.id === id) || tools[0]; if (!current) return;
+  $("#title").textContent = current.name; $("#desc").textContent = current.description;
+  $("#form").innerHTML = current.params.map(field).join("");
+  $("#result").innerHTML = '<p class="muted">Fill in the fields and press Run.</p>';
+  $("#copy").hidden = $("#dl").hidden = true; lastResult = null; renderNav($("#tsearch").value);
+}
+async function sendToTool(id, values) {
+  await toolsReady; select(id);
+  for (const [k, v] of Object.entries(values)) { const el = $("#form").elements[k]; if (el && v != null) el.value = v; }
+  showView("tools"); history.pushState(null, "", "#/tools/" + id);
+  const empty = [...$("#form").elements].find(el => el.name && !el.value && ["query", "keywords", "text"].includes(el.name));
+  if (empty) { toast("Fill in the empty box, then press Run"); empty.focus(); }
+  else runTool();
+}
+async function runTool() {
+  const body = Object.fromEntries(new FormData($("#form")));
+  $("#result").innerHTML = '<p class="muted"><span class="spin"></span> Running…</p>'; $("#run").disabled = true;
+  try {
+    lastResult = await getJSON(`/api/run/${current.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    $("#result").innerHTML = render(lastResult); $("#copy").hidden = $("#dl").hidden = false;
+  } catch (e) { $("#result").innerHTML = `<div class="error">${esc(e.message)}</div>`; }
+  finally { $("#run").disabled = false; }
+}
+$("#run").onclick = runTool;
+$("#form").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); runTool(); } });
+const text = () => typeof lastResult === "string" ? lastResult : JSON.stringify(lastResult, null, 2);
+$("#copy").onclick = () => copyText(text());
+$("#dl").onclick = () => {
+  const isText = typeof lastResult === "string";
+  const ext = isText ? (current.id === "csv" ? "csv" : current.id === "raw_json" ? "json" : "md") : "json";
+  const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(new Blob([text()], { type: "text/plain" })), download: `${current.id}.${ext}` });
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+function render(res) {
+  if (typeof res === "string") return `<pre class="out">${esc(res)}</pre>`;
+  if (Array.isArray(res)) return table(res);
+  return Object.entries(res).map(([k, v]) => `<section><h4>${esc(k.replaceAll("_", " "))}</h4>${
+    Array.isArray(v) ? table(v) : (v && typeof v === "object") ? `<pre class="out">${esc(JSON.stringify(v, null, 2))}</pre>` : `<p>${esc(v ?? "—")}</p>`}</section>`).join("");
+}
+function table(rows) {
+  if (!rows.length) return '<p class="muted">No results.</p>';
+  if (typeof rows[0] !== "object") rows = rows.map(value => ({ value }));
+  const cols = [...new Set(rows.flatMap(r => Object.keys(r)))];
+  const cell = (v, col) => {
+    if (v == null) return "";
+    if (Array.isArray(v) && v.every(x => /^https?:/.test(x))) return v.map(u => cellLink(u)).join("<br>");
+    if (typeof v === "object") return esc(JSON.stringify(v));
+    if (/^https?:/.test(v)) return cellLink(v);
+    return esc(v);
+  };
+  return `<div class="tablewrap"><table class="res"><thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map(r => `<tr>${cols.map(c => `<td>${cell(r[c], c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+function cellLink(u) {
+  const post = u.match(/reddit\.com\/r\/[^/]+\/comments\/([a-z0-9]+)/i);
+  return post ? `<a href="#/comments/${post[1]}" title="Open in Reader">read</a> · <a href="${esc(u)}" target="_blank" rel="noopener noreferrer">reddit</a>`
+              : `<a href="${esc(u)}" target="_blank" rel="noopener noreferrer">open</a>`;
+}
+
+/* ---------------- boot ---------------- */
+(async () => {
+  try { tools = await (await fetch("/api/tools")).json(); } catch { tools = []; }
+  renderNav(); if (tools.length) select(tools[0].id); resolveTools();
+})();
+route();
+
+/* ---------------- phone access (QR sign-in) ---------------- */
+async function phoneCall(action) {
+  return getJSON("/api/phone" + (action ? "/" + action : ""), action ? { method: "POST", headers: { "X-Reddit-Studio": "1" } } : undefined);
+}
+function phoneRender(st) {
+  const b = $("#phonebody");
+  if (!st.on) {
+    b.innerHTML = `<p>Scan a QR code with your phone's camera to open Reddit Studio on it. Your phone and this computer need to be on the <b>same Wi-Fi</b>.</p>
+      <p class="muted" style="font-size:13px">Only phones that scan the code can get in, and turning this off signs them all out. Your computer stays the one fetching from Reddit.</p>
+      <button class="primary" id="phoneon" style="width:100%;justify-content:center">${icon("qr_code_2")}Turn on & show QR code</button>`;
+    $("#phoneon").onclick = async () => { $("#phoneon").disabled = true; $("#phoneon").innerHTML = '<span class="spin"></span> Starting…';
+      try { phoneRender(await phoneCall("on")); } catch (e) { b.insertAdjacentHTML("beforeend", `<p class="error">${esc(e.message)}</p>`); $("#phoneon").disabled = false; $("#phoneon").textContent = "Try again"; } };
+  } else {
+    b.innerHTML = `<div class="qr">${st.qr_svg || ""}</div>
+      <ol class="steps"><li>Open your phone's camera and point it at the code.</li><li>Tap the link that pops up.</li>
+      <li>Optional: in your phone browser's Share menu, tap <b>Add to Home Screen</b>.</li></ol>
+      <p class="muted" style="font-size:12px">If a Mac pop-up asks whether Python may accept incoming connections, click <b>Allow</b>.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button id="phonecopy">${icon("link")}Copy link</button>
+      <button id="phoneoff" style="margin-left:auto">${icon("block")}Turn off & sign out phones</button></div>`;
+    $("#phonecopy").onclick = () => copyText(st.url);
+    $("#phoneoff").onclick = async () => { try { phoneRender(await phoneCall("off")); toast("Phone access is off"); } catch (e) { toast(e.message); } };
+  }
+}
+$("#phonebtn").onclick = async () => {
+  $("#phonemodal").hidden = false; $("#phonebody").innerHTML = '<p><span class="spin"></span></p>';
+  try { phoneRender(await phoneCall()); } catch (e) { $("#phonebody").innerHTML = `<p class="error">${esc(e.message)}</p>`; }
+};
+$("#phoneclose").onclick = () => ($("#phonemodal").hidden = true);
+$("#phonemodal").onclick = e => { if (e.target.id === "phonemodal") $("#phonemodal").hidden = true; };
+document.addEventListener("keydown", e => { if (e.key === "Escape") $("#phonemodal").hidden = true; });
+phoneCall().then(st => { if (!st.local) { $("#phonebtn").hidden = true; $("#ver").hidden = true; } }).catch(() => {});
+if (new URLSearchParams(location.search).has("phone")) {           // opened from the menu bar's "Phone access" item
+  history.replaceState(null, "", "/" + location.hash); $("#phonebtn").click();
+}
+
+/* installable web app */
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+let installEvt = null;
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; $("#install").hidden = false; });
+$("#install").onclick = async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; $("#install").hidden = true; };
+</script>
+</body>
+</html>

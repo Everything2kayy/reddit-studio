@@ -1,0 +1,56 @@
+REDDIT STUDIO  (no Reddit keys needed)
+
+START IT
+1. Right-click "Reddit Studio.command" > Open > Open.
+   If macOS says you don't have access privileges, open Terminal and type:
+   cd ~/Downloads/"Reddit Studio" && chmod +x *.command && xattr -cr . && open "Reddit Studio.command"
+2. The first time, it installs itself (about a minute). Then it moves to your MENU BAR
+   (the little Reddit-face icon, top right of the screen) and opens in your browser.
+   The Terminal window closes itself.
+3. Closing the browser tab doesn't stop it. Click the menu bar icon to:
+   Open Reddit Studio, Open Tools, Phone access (QR code), Start at login, or Quit.
+4. Next time, open "Reddit Studio" from your Applications folder or Spotlight
+   (Cmd+Space, type Reddit Studio). No Terminal needed.
+
+UPDATES
+Reddit Studio updates itself from its GitHub repository. New versions install
+automatically (you can turn that off), or click the version number in the top bar,
+or use the menu bar icon > Check for Updates. Every update keeps a backup, and
+"Roll back to previous version" undoes it.
+
+CONTROL CENTER
+Applications > "Reddit Studio Control Center" opens a clickable list of 23 options
+(update, roll back, restart, sign in/out, repair, start at login, logs, uninstall…).
+The same options work in Terminal: type  rsctl help
+
+WHAT'S IN IT
+- Communities button: 140+ subreddits by topic, star your favorites (they pin to the
+  top), or add any subreddit. An 18+ section is hidden until you switch it on there;
+  explicit media stays blurred until clicked (you can turn blurring off).
+- Reader tab: browse any subreddit, user, or pasted Reddit link. Images, galleries,
+  video with sound, full comment threads. Filter by type, list or grid, keys j/k/Enter/Esc.
+- "Send to tool" on any post, and "Analyze" on any feed, jump straight into the Tools tab.
+- Tools tab: 37 tools (search, analysis, media links, exports, utilities).
+- Phone button: shows a QR code. Scan it with your phone (same Wi-Fi) to sign in on
+  your phone. Turn it off any time; that signs every phone out.
+- Install button (Chrome/Edge): makes it its own app window with a Dock icon.
+
+feed-studio.user.js = the browser add-on for Reddit + X (colors, bigger videos,
+downloads, 33 tweaks). Install Violentmonkey or Tampermonkey, make a new script,
+paste this file's contents in, and save.
+
+SIGN IN (optional, for full data)
+If you've run `rdt login` (rdt-cli), Reddit Studio uses that sign-in automatically:
+scores, nested comments, sign-in-only communities, plus Home and Saved feeds.
+It only reads; it never posts, votes, or messages. Click the account button (top right)
+to see who you're signed in as, or switch back to public data. To remove the sign-in
+completely, type `rdt logout` in Terminal. Use a secondary Reddit account.
+
+LIMITED MODE
+Reddit blocked its full public data for apps without an approved API key (2026).
+When that happens, Reddit Studio switches to Reddit's RSS feeds by itself and shows
+a notice. Posts, links, images, video, and comments still work. Scores, vote counts,
+nested replies, and 7 tools (subreddit info, rules, popular/new/find subreddits,
+compare, raw JSON) aren't available. It re-checks for full access every 30 minutes.
+
+Open-source parts: Flask, qrcode, DOMPurify, hls.js, Google Fonts (Inter, Material Symbols).

@@ -1,0 +1,151 @@
+#!/bin/bash
+# Reddit Studio Control Center
+#   rsctl            open the clickable Control Center window
+#   rsctl <action>   run one action from Terminal (see: rsctl help)
+DIR="$HOME/reddit-studio"
+PORT=5055
+URL="http://127.0.0.1:$PORT"
+APPB="$HOME/Applications/Reddit Studio.app"
+PY="$DIR/.venv/bin/python"
+DL_FOLDER="$HOME/Downloads/Reddit Studio"
+
+note()  { osascript -e "display notification \"$1\" with title \"Reddit Studio\"" >/dev/null 2>&1; echo "$1"; }
+say()   { osascript -e "display dialog \"$1\" buttons {\"OK\"} default button 1 with title \"Reddit Studio\"" >/dev/null 2>&1 || echo "$1"; }
+ask()   { osascript -e "button returned of (display dialog \"$1\" buttons {\"Cancel\", \"$2\"} default button 2 with title \"Reddit Studio\")" 2>/dev/null; }
+running() { curl -s -o /dev/null --max-time 2 "$URL/api/version"; }
+api()   { curl -s --max-time 30 -X POST -H "X-Reddit-Studio: 1" -H "Content-Type: application/json" "$URL$1" ${2:+-d "$2"}; }
+jget()  { "$PY" -c "import json,sys; d=json.load(sys.stdin); d=d.get('result',d); print(d.get('$1') if d.get('$1') is not None else '')" 2>/dev/null; }
+in_terminal() { osascript -e "tell application \"Terminal\" to activate" -e "tell application \"Terminal\" to do script \"$1\"" >/dev/null 2>&1; }
+
+version() { cat "$DIR/VERSION" 2>/dev/null || echo "?"; }
+
+start() {
+  if running; then return 0; fi
+  if [ -d "$APPB" ]; then open "$APPB" --args --no-browser
+  else (cd "$DIR" && nohup "$PY" "$DIR/menubar.py" --no-browser >> server.log 2>&1 &) ; fi
+  for _ in $(seq 1 40); do running && return 0; sleep 0.25; done
+  return 1
+}
+stop() {
+  pkill -f "reddit-studio/menubar.py" 2>/dev/null
+  lsof -ti tcp:$PORT 2>/dev/null | xargs kill 2>/dev/null
+  for _ in $(seq 1 20); do running || return 0; sleep 0.25; done
+}
+
+run_action() {
+  case "$1" in
+    open)        start && open "$URL/#/r/popular" ;;
+    tools)       start && open "$URL/#/tools" ;;
+    phone)       start && open "$URL/?phone=1#/r/popular" ;;
+    status)
+      if running; then
+        s=$(curl -s "$URL/api/status"); u=$(echo "$s" | jget user); rss=$(echo "$s" | jget rss)
+        msg="Reddit Studio $(version) is running at $URL."
+        [ -n "$u" ] && msg="$msg Signed in as u/$u." || { [ "$rss" = "True" ] && msg="$msg Limited mode (RSS)." || msg="$msg Public mode."; }
+      else msg="Reddit Studio $(version) is not running."; fi
+      say "$msg" ;;
+    check)
+      if running; then r=$(api /api/update/check); else r=$(cd "$DIR" && "$PY" updater.py check); fi
+      err=$(echo "$r" | jget error); latest=$(echo "$r" | jget latest); avail=$(echo "$r" | jget available)
+      if [ -n "$err" ]; then say "Couldn't check for updates: $err"
+      elif [ "$avail" = "True" ]; then
+        [ "$(ask "Version $latest is available (you have $(version))." "Install update")" = "Install update" ] && run_action update
+      else say "You're up to date (version $(version))."; fi ;;
+    update)
+      note "Checking for and installing updates…"
+      out=$(cd "$DIR" && "$PY" updater.py install); code=$?
+      msg=$(echo "$out" | jget message); err=$(echo "$out" | jget error)
+      if [ $code -eq 0 ]; then
+        note "${msg:-Done.}"
+        if [ "$(echo "$out" | jget updated)" = "True" ]; then stop; start && note "Reddit Studio $(version) is running."; fi
+      else say "Update failed: $err"; fi ;;
+    rollback)
+      [ "$(ask "Go back to the previous version of Reddit Studio?" "Roll back")" = "Roll back" ] || return
+      out=$(cd "$DIR" && "$PY" updater.py rollback)
+      if [ $? -eq 0 ]; then stop; start; note "$(echo "$out" | jget message)"; else say "$(echo "$out" | jget error)"; fi ;;
+    restart)     stop; start && note "Reddit Studio restarted." ;;
+    stop)        stop; note "Reddit Studio stopped." ;;
+    start)       start && note "Reddit Studio is running." ;;
+    signin)      in_terminal "'$DIR/.venv/bin/rdt' login && echo && echo 'Signed in. You can close this window.'" ;;
+    signin-status) in_terminal "'$DIR/.venv/bin/rdt' status" ;;
+    signout)
+      [ "$(ask "Remove your saved Reddit sign-in from this Mac?" "Sign out")" = "Sign out" ] || return
+      "$DIR/.venv/bin/rdt" logout >/dev/null 2>&1; note "Signed out. Reddit Studio is using public data." ;;
+    login-on)    "$PY" -c "import sys; sys.path.insert(0,'$DIR'); import menubar; menubar.set_login_item(True)" && note "Reddit Studio will start when you log in." ;;
+    login-off)   "$PY" -c "import sys; sys.path.insert(0,'$DIR'); import menubar; menubar.set_login_item(False)" && note "Reddit Studio won't start at login." ;;
+    log)         touch "$DIR/server.log"; open -a Console "$DIR/server.log" 2>/dev/null || open -e "$DIR/server.log" ;;
+    folder)      open "$DIR" ;;
+    installer)
+      if [ -f "$DL_FOLDER/Reddit Studio.command" ]; then
+        in_terminal "cd ~/Downloads/\\\"Reddit Studio\\\" && chmod +x *.command && xattr -cr . && open \\\"Reddit Studio.command\\\""
+      else say "There's no Reddit Studio installer in your Downloads folder. Download and unzip the latest release first."; fi ;;
+    repair)
+      [ "$(ask "Reinstall Reddit Studio's Python packages? Your settings and sign-in are kept." "Repair")" = "Repair" ] || return
+      in_terminal "cd ~/reddit-studio && .venv/bin/python -m pip install --upgrade --force-reinstall -r requirements.txt && echo && echo 'Repair finished. You can close this window.'" ;;
+    userscript)  start && open "$URL/static/feed-studio.user.js" && note "If Violentmonkey or Tampermonkey is installed, it will offer to install Feed Studio." ;;
+    autoupdate-on)  running && api /api/update/settings '{"auto_install": true}' >/dev/null; note "Updates will install automatically." ;;
+    autoupdate-off) running && api /api/update/settings '{"auto_install": false}' >/dev/null; note "Updates will wait for you to install them." ;;
+    about)       say "Reddit Studio $(version)\n\nRead Reddit and run analysis tools from your Mac.\nInstalled in ~/reddit-studio\n\nOpen-source parts: Flask, rumps, qrcode, DOMPurify, hls.js, rdt-cli." ;;
+    uninstall)
+      [ "$(ask "Remove Reddit Studio from this Mac? Your Reddit sign-in (rdt-cli) isn't touched." "Uninstall")" = "Uninstall" ] || return
+      stop; rm -f "$HOME/Library/LaunchAgents/com.redditstudio.menubar.plist" "$HOME/.local/bin/rsctl"
+      rm -rf "$APPB" "$HOME/Applications/Reddit Studio Control Center.app"
+      mv "$DIR" "$HOME/.Trash/reddit-studio-$(date +%s)" 2>/dev/null
+      say "Reddit Studio was moved to the Trash." ;;
+    menu)        menu ;;
+    help|--help|-h)
+      cat <<'HELP'
+Reddit Studio Control Center
+  rsctl                 open the Control Center window
+  rsctl open|tools|phone        open the app, the Tools tab, or the phone QR code
+  rsctl status|about            show status / version
+  rsctl check|update|rollback   check for, install, or undo an update
+  rsctl start|stop|restart      control the background app
+  rsctl signin|signin-status|signout   Reddit sign-in (rdt-cli)
+  rsctl login-on|login-off      start at login
+  rsctl autoupdate-on|autoupdate-off   automatic updates
+  rsctl installer|repair        run the Downloads installer / reinstall packages
+  rsctl log|folder|userscript|uninstall
+HELP
+      ;;
+    *) echo "Unknown action: $1 (try: rsctl help)"; return 1 ;;
+  esac
+}
+
+# Clickable window: a list of actions; pick one, it runs, the list comes back.
+ITEMS=(
+  "Open Reddit Studio|open"
+  "Open Tools|tools"
+  "Phone access (QR code)|phone"
+  "Status|status"
+  "Check for updates|check"
+  "Install update now|update"
+  "Roll back to previous version|rollback"
+  "Run installer from Downloads|installer"
+  "Restart Reddit Studio|restart"
+  "Stop Reddit Studio|stop"
+  "Sign in to Reddit|signin"
+  "Check Reddit sign-in|signin-status"
+  "Sign out of Reddit|signout"
+  "Start at login: on|login-on"
+  "Start at login: off|login-off"
+  "Automatic updates: on|autoupdate-on"
+  "Automatic updates: off|autoupdate-off"
+  "Repair (reinstall packages)|repair"
+  "Install Feed Studio browser add-on|userscript"
+  "Show log|log"
+  "Open data folder|folder"
+  "About Reddit Studio|about"
+  "Uninstall Reddit Studio|uninstall"
+)
+menu() {
+  while true; do
+    list=""; for it in "${ITEMS[@]}"; do list="$list\"${it%%|*}\", "; done; list="${list%, }"
+    state="not running"; running && state="running"
+    choice=$(osascript -e "choose from list {$list} with title \"Reddit Studio Control Center\" with prompt \"Version $(version) · $state\" OK button name \"Run\" cancel button name \"Close\"" 2>/dev/null)
+    [ -z "$choice" ] || [ "$choice" = "false" ] && break
+    for it in "${ITEMS[@]}"; do [ "${it%%|*}" = "$choice" ] && run_action "${it##*|}"; done
+  done
+}
+
+if [ $# -eq 0 ]; then menu; else run_action "$@"; fi
