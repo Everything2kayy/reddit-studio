@@ -147,11 +147,14 @@ def fetch(path, **params):
             kind = type(e).__name__
             if kind == "NotFoundError":
                 raise RuntimeError("Reddit says that doesn't exist (404). Check the spelling.")
-            if kind == "ForbiddenError":
-                raise RuntimeError("Reddit returned 403: it's private, banned, or your account can't see it.")
             if kind == "RateLimitError":
                 raise RuntimeError("Reddit is rate-limiting you. Wait about a minute and try again.")
-            if kind in ("SessionExpiredError", "AuthRequiredError") or "HTML instead of JSON" in str(e):
+            if kind == "ForbiddenError":
+                # Reddit often answers 403 to a stale or flagged sign-in even for public pages,
+                # so try public data before blaming the community.
+                SIGNED["error"] = ("Reddit refused your signed-in request (403). If this keeps happening, "
+                                   "run `rdt login` in Terminal to refresh your sign-in.")
+            elif kind in ("SessionExpiredError", "AuthRequiredError") or "HTML instead of JSON" in str(e):
                 SIGNED["error"] = "Your Reddit sign-in expired. Run `rdt login` in Terminal to refresh it."
             else:
                 SIGNED["error"] = f"Signed-in request failed ({kind}); using public data instead."

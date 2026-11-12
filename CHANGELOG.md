@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.6.2] - 2026-11-12
+### Fixed
+- Public communities like r/popular no longer show "Reddit returned 403" when your sign-in is refused; Reddit Studio falls back to public data instead.
+
 ## [2.6.1] - 2026-11-12
 ### Changed
 - Updates are now connected to the official repository, so installed copies can find and install new releases.
