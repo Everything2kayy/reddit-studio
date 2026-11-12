@@ -41,7 +41,7 @@
 
   /* ---------------- option registry ---------------- */
   // type: toggle | range | select | text | area | button
-  const CATS = ["Appearance", "Feed", "Media", "Comments", "Explicit mode", "Privacy", "Network", "Storage", "Keyboard", "Developer", "Mods", "Setup"];
+  const CATS = ["Appearance", "Views", "Feed", "Media", "Comments", "Explicit mode", "Privacy", "Network", "Storage", "Keyboard", "Developer", "Mods", "Setup"];
   const O = [];
   const add = (cat, id, label, type, def, extra = {}) => O.push({ cat, id, label, type, def, ...extra });
 
@@ -62,6 +62,20 @@
   add("Appearance", "glowSel", "Glow on the selected post", "toggle", true);
   add("Appearance", "textIcons", "Text labels instead of icons", "toggle", false);
   add("Appearance", "autoTheme", "Follow macOS light/dark", "select", "off", { options: [["off", "Off"], ["on", "Daylight by day, Midnight by night"]] });
+
+  // Views (the feed display engine lives in static/views.js)
+  add("Views", "rememberView", "Remember the view for each community", "toggle", true);
+  add("Views", "viewColumns", "Columns in Grid, Masonry and Magazine", "select", "auto", { options: [["auto", "Automatic"], ["2", "2"], ["3", "3"], ["4", "4"], ["5", "5"], ["6", "6"]] });
+  add("Views", "aspectLock", "Show whole images in Grid (no cropping)", "toggle", false);
+  add("Views", "hoverPreview", "Preview images when hovering a post", "toggle", true);
+  add("Views", "smartMedia", "Smart view: media-heavy feeds use", "select", "masonry", { options: [["masonry", "Masonry"], ["grid", "Grid"], ["magazine", "Magazine"]] });
+  add("Views", "reelsAdvance", "Reels: move to the next video automatically", "select", "end", { options: [["off", "Off"], ["end", "When a video ends"], ["8", "Every 8 seconds"], ["15", "Every 15 seconds"]] });
+  add("Views", "gallerySlideshow", "Gallery slideshow speed", "select", "5", { options: [["3", "3 seconds"], ["5", "5 seconds"], ["8", "8 seconds"], ["12", "12 seconds"]] });
+  add("Views", "overlaySound", "Play sound in Reels, Gallery and Theater", "toggle", false);
+  add("Views", "overlayReveal", "Show 18+ media unblurred in Reels, Gallery and Theater", "toggle", false);
+  add("Views", "resumeScroll", "Resume where you left off in each feed", "toggle", true);
+  add("Views", "focusMode", "Focus mode (hide bars; z toggles)", "toggle", false);
+  add("Views", "commentTools", "Comment tools (OP only, search, new-comment count)", "toggle", true);
 
   // Feed
   add("Feed", "showThumbs", "Show thumbnails", "toggle", true);
@@ -144,6 +158,7 @@
   add("Developer", "logApi", "Log app requests to the browser console", "toggle", false);
   add("Developer", "perfHud", "Show render timings", "toggle", false);
   add("Developer", "customCSS", "Custom CSS (applies live)", "area", "");
+  add("Developer", "scriptConsole", "Script console (run JavaScript against the app)", "button", null, { run: () => scriptConsole() });
   add("Developer", "exportSettings", "Export settings", "button", null, { run: () => exportSettings() });
   add("Developer", "importSettings", "Import settings…", "button", null, { run: () => importSettings() });
   add("Developer", "resetSettings", "Reset all settings", "button", null, { run: () => { if (confirm("Reset every setting to default?")) { LS.set("rs_opts", {}); location.reload(); } } });
@@ -161,6 +176,7 @@
     if (id === "defaultSort") LS.set("rs_sort", v);
     if (id === "defaultCsort") LS.set("rs_csort", v);
     applyAll(); rerender();
+    document.dispatchEvent(new CustomEvent("rs:opt", { detail: { id, v } }));
   }
 
   /* ---------------- early: before the main script reads its saved values ---------------- */
@@ -337,7 +353,7 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
   function rerender() { const feed = G.feed(); if (feed && feed.loaded && window.renderFeed) { seenUrls = new Map(); renderFeed(); } }
 
   /* ---------------- routes: #/explicit, #/bookmarks ---------------- */
-  let themeBefore = null;
+  let themeBefore = null, customFeed = null;
   function route(h) {
     if (h.startsWith("comments/")) return false;          // opening a post keeps the current look
     if (h === "explicit") {
@@ -349,6 +365,16 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
     }
     leaveExplicitLook();
     if (h === "bookmarks") { showLocal("🔖 Bookmarks", bookmarks()); return true; }
+    if (h === "history") { showLocal("🕘 History", LS.get("rs_hist", [])); return true; }
+    let m;
+    if ((m = /^c\/(.+)$/.exec(h))) { const c = LS.get("rs_coll", {})[m[1]] || []; showLocal("🗂 " + m[1], c); return true; }
+    if ((m = /^f\/(.+)$/.exec(h))) {
+      const subs = (LS.get("rs_feeds", {})[m[1]] || []).filter(Boolean);
+      if (!subs.length) { say("That custom feed is empty"); return false; }
+      customFeed = { name: m[1], target: "r/" + subs.join("+").toLowerCase() };
+      loadFeed("r/" + subs.join("+"));
+      return true;
+    }
     return false;
   }
   function enterExplicitLook() {
@@ -553,6 +579,31 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
     $("#tidy-open").onclick = () => { window.helperRun && helperRun("open_files"); };
   }
 
+  function scriptConsole() {
+    closeSettings();
+    const m = document.createElement("div"); m.className = "modalbg"; m.style.zIndex = 125;
+    m.innerHTML = `<div class="modal wide"><div style="display:flex;align-items:center;gap:8px"><b style="flex:1;font-size:17px">Script console</b><button class="ghost" data-x>✕</button></div>
+      <p class="muted" style="font-size:12.5px">Runs JavaScript in the app. Handy values: <code>feed.posts</code>, <code>Studio</code>, <code>RSViews</code>, <code>getJSON(url)</code>. The last expression's value is shown. Use <code>await</code> freely.</p>
+      <textarea id="sc-code" spellcheck="false" style="width:100%;min-height:150px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:9px;padding:8px;font:12px ui-monospace,Menlo,monospace">${escH(LS.get("rs_console", "feed.posts.filter(p => p.score > 1000).map(p => p.title)"))}</textarea>
+      <div style="display:flex;gap:6px;margin:8px 0"><button class="primary" id="sc-run">Run (Cmd+Enter)</button><button id="sc-save">Save as JS mod</button></div>
+      <pre class="out" id="sc-out" style="max-height:40vh">Output appears here.</pre></div>`;
+    document.body.appendChild(m);
+    const code = m.querySelector("#sc-code"), out = m.querySelector("#sc-out");
+    const run = async () => {
+      LS.set("rs_console", code.value);
+      try {
+        const src = code.value.trim(), lines = src.split("\n"), last = lines.pop();
+        const body = lines.join("\n") + "\nreturn (" + last.replace(/;\s*$/, "") + ");";
+        let v; try { v = await (new Function("return (async () => {" + body + "})()"))(); } catch (e) { if (e instanceof SyntaxError) v = await (new Function("return (async () => {" + src + "})()"))(); else throw e; }
+        out.textContent = typeof v === "string" ? v : JSON.stringify(v, null, 2) ?? String(v);
+      } catch (e) { out.textContent = "Error: " + e.message; }
+    };
+    m.querySelector("#sc-run").onclick = run;
+    code.onkeydown = e => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") run(); };
+    m.querySelector("#sc-save").onclick = () => { const name = prompt("Name this mod:", "My script"); if (!name) return; const ms = mods(); ms.push({ name, type: "js", code: code.value, on: true }); saveMods(ms); say("Saved as a mod"); };
+    m.onclick = e => { if (e.target === m || e.target.closest("[data-x]")) m.remove(); };
+  }
+
   function exportSettings() {
     const data = { app: "Reddit Studio", exported: new Date().toISOString(), opts: V, mods: mods(), favs: LS.get("rs_favs", []), theme: LS.get("rs_theme"), accent: LS.get("rs_accent"), bookmarks: bookmarks() };
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
@@ -579,6 +630,7 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
       ["open", "Open"], ["reddit", "Open on Reddit"], ["copy", "Copy link"], p.media && p.media.link && !/reddit\.com/.test(p.domain) ? ["copymedia", "Copy media link"] : null, null,
       ["bm", isBookmarked(p.id) ? "Remove bookmark" : "Bookmark"], ["read", readSet.has(p.id) ? "Mark as unread" : "Mark as read"], ["hide", "Hide this post"], null,
       ["fav", "Favorite r/" + p.subreddit], ["mutesub", "Mute r/" + p.subreddit], ["muteuser", "Mute u/" + p.author], null,
+      ["coll", "Add to collection…"], ["tag", "Tag u/" + p.author + "…"], ["download", "Download media"], ["feedadd", "Add r/" + p.subreddit + " to a custom feed…"], null,
       ["subtools", "Analyze r/" + p.subreddit + " in Tools"], ["usertools", "Look up u/" + p.author], ["json", "View JSON"],
     ];
     m.innerHTML = items.map(it => it ? `<button data-a="${it[0]}">${escH(it[1])}</button>` : "<hr>").join("");
@@ -603,6 +655,17 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
     if (a === "subtools" && window.sendToTool) sendToTool("sub_info", { sub: p.subreddit });
     if (a === "usertools" && window.sendToTool) sendToTool("user", { name: p.author });
     if (a === "json") showJSON(p);
+    if (a === "coll") addToCollection(p);
+    if (a === "tag" && window.RSViews) RSViews.tagUser(p.author);
+    if (a === "download" && window.RSViews) RSViews.download(p.id);
+    if (a === "feedadd" && window.RSViews) RSViews.addToFeed(p.subreddit);
+  }
+  function addToCollection(p) {
+    const colls = LS.get("rs_coll", {}), names = Object.keys(colls);
+    const name = (prompt("Add to which collection?" + (names.length ? "\nExisting: " + names.join(", ") : ""), names[0] || "Favorites") || "").trim();
+    if (!name) return;
+    const list = (colls[name] || []).filter(x => x.id !== p.id); list.unshift(p); colls[name] = list.slice(0, 1000);
+    LS.set("rs_coll", colls); say(`Added to “${name}”`);
   }
   function saveRead() { LS.set("rs_read", [...readSet].slice(-5000)); }
   function openExternal(u) { if (opt("confirmExternal") && !confirm("Open this link?\n\n" + u)) return; window.open(u, "_blank", "noopener"); }
@@ -617,7 +680,12 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
   function paletteItems() {
     const items = [];
     const go = (label, hash, hint) => items.push({ label, hint, run: () => (location.hash = hash) });
-    go("Popular", "#/r/popular", "Go"); go("All", "#/r/all", "Go"); go("Bookmarks", "#/bookmarks", "Go");
+    go("Popular", "#/r/popular", "Go"); go("All", "#/r/all", "Go"); go("Bookmarks", "#/bookmarks", "Go"); go("History", "#/history", "Go");
+    Object.keys(LS.get("rs_feeds", {})).forEach(n => go("📚 " + n, "#/f/" + n, "Custom feed"));
+    Object.keys(LS.get("rs_coll", {})).forEach(n => go("🗂 " + n, "#/c/" + n, "Collection"));
+    if (window.RSViews) RSViews.MODES.forEach(([id, label]) => items.push({ label: "View: " + label, hint: "View", run: () => RSViews.setView(id) }));
+    items.push({ label: "Download media from this feed", hint: "Action", run: () => window.RSViews && RSViews.download() });
+    items.push({ label: "Custom feeds…", hint: "Action", run: () => window.RSViews && RSViews.feedsManager() });
     if (opt("explicit")) go("Explicit feed", "#/explicit", "Go");
     if (G.account().available) { go("Home feed", "#/home", "Go"); go("Saved posts", "#/saved", "Go"); }
     LS.get("rs_favs", []).forEach(s => go("r/" + s, "#/r/" + s, "Favorite"));
@@ -799,12 +867,18 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
         if (clean.length !== r.length) { LS.set("rs_recent", clean); window.renderChips && renderChips(); }
       }
     }
+    if (customFeed && feed.target.toLowerCase() === customFeed.target) {
+      $("#feedtitle").textContent = "📚 " + customFeed.name; $("#addr").value = "f/" + customFeed.name;
+      const r = LS.get("rs_recent", []), clean = r.filter(t => String(t).toLowerCase() !== customFeed.target);
+      if (clean.length !== r.length) { LS.set("rs_recent", clean); window.renderChips && renderChips(); }
+    }
     if (feed.target && feed.target !== "bookmarks") LS.set("rs_last", feed.target.toLowerCase() === multi ? "explicit" : feed.target);
     badge();
     hooks.feed.forEach(f => { try { f(); } catch (e) { console.warn(e); } });
   });
   document.addEventListener("rs:post", e => {
     const { p, el } = e.detail; current = p;
+    const hist = LS.get("rs_hist", []).filter(x => x.id !== p.id); hist.unshift(p); LS.set("rs_hist", hist.slice(0, 300));
     if (opt("markRead") && !readSet.has(p.id)) { readSet.add(p.id); saveRead(); const c = document.querySelector(`.card[data-id="${CSS.escape(p.id)}"]`); c && c.classList.add("read"); }
     const v = el.querySelector(".media video");
     if (v) {
@@ -888,7 +962,10 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
     const chips = $("#chips");
     if (chips) new MutationObserver(() => {
       if (chips.querySelector("[data-studio]")) return;
-      const extra = `<button class="chip" data-studio data-t="bookmarks">🔖 Bookmarks</button>` + (opt("explicit") ? `<button class="chip" data-studio data-t="explicit">🔥 Explicit</button>` : "");
+      const extra = `<button class="chip" data-studio data-t="bookmarks">🔖 Bookmarks</button>` + (opt("explicit") ? `<button class="chip" data-studio data-t="explicit">🔥 Explicit</button>` : "")
+        + Object.keys(LS.get("rs_feeds", {})).map(n => `<button class="chip" data-studio data-t="f/${escH(n)}">📚 ${escH(n)}</button>`).join("")
+        + Object.keys(LS.get("rs_coll", {})).map(n => `<button class="chip" data-studio data-t="c/${escH(n)}">🗂 ${escH(n)}</button>`).join("")
+        + `<button class="chip" data-studio data-t="history">🕘 History</button>`;
       chips.insertAdjacentHTML("afterbegin", extra);
     }).observe(chips, { childList: true });
     if (opt("pin")) lock();
@@ -900,7 +977,7 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
   /* ---------------- public API (for mods) ---------------- */
   window.Studio = {
     opt, set: setOpt, options: O, filterPost, cardClass, route, inExplicit, bookmarks, toggleBookmark,
-    openSettings, palette, lock, panic, lightbox, cheatSheet, wizard, themes: THEMES,
+    openSettings, palette, lock, panic, refreshChips: () => { const c = $("#chips"); c && c.querySelectorAll("[data-studio]").forEach(x => x.remove()); window.renderChips && renderChips(); }, lightbox, cheatSheet, wizard, themes: THEMES,
     on(ev, f) { (hooks[ev] || (hooks[ev] = [])).push(f); },
     count: () => ({ settings: O.length, themes: Object.keys(THEMES).length + 8, presets: Object.keys(PRESETS).length, starterMods: STARTER_MODS.length }),
   };

@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.0.0] - 2026-11-12
+### Added
+- Feed Display Engine: one feed, ten views, picked from the View menu above any feed (or press v to cycle):
+  Split pane, Compact, Grid, Masonry (natural image shapes), Magazine (featured layout), Reader (text first),
+  Gallery (full screen, arrow keys, slideshow), Reels (full-screen vertical feed that plays what's on screen and
+  keeps loading), Theater (big player with the comments beside it) and Smart (picks a view from what's in the feed).
+  Each community remembers its own view; columns, uncropped images, hover previews and focus mode (z) are in Settings › Views.
+- Bulk media downloader (⬇ above any feed, on posts, or right-click): saves photos, galleries, videos and RedGIFs from a
+  community, user, custom feed or post into Reddit Studio Files › Media; re-runs only fetch new files; keeps video sound
+  when ffmpeg is installed.
+- Custom feeds (combine communities into one feed with its own chip), collections (organize posts into folders),
+  reading history, user tags (label and color anyone), resume where you left off in each feed.
+- Comment tools: OP-only filter, find in comments, "N new since your last visit", [ and ] to jump between top comments.
+- Script console (Settings › Developer) to run JavaScript against the app, and save scripts as mods.
+- More right-click actions: add to collection, tag user, download media, add to a custom feed.
+
 ## [2.9.0] - 2026-11-12
 ### Added
 - Network settings (Settings › Network): send Reddit Studio's traffic through an HTTP or SOCKS5 proxy, with one-click presets for Tor and Tor Browser, a Test connection button that says whether Reddit answers through it, and Test without proxy for comparison. Off by default; with it off, nothing about your Mac's connection changes.

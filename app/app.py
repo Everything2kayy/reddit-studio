@@ -10,6 +10,7 @@ import reddit_tools as rt
 import helper
 import bridge
 import network
+import media
 import updater
 from reddit_tools import REGISTRY
 
@@ -53,7 +54,7 @@ def gate():
     if not hmac.compare_digest(request.cookies.get("rs_t", ""), phone["token"]):
         return ("Not signed in. Open Reddit Studio on your computer, click Phone, "
                 "and scan the QR code."), 401
-    if request.path.startswith(("/api/phone", "/api/update", "/api/signin", "/api/apikey", "/api/helper", "/api/network")) and request.method != "GET":
+    if request.path.startswith(("/api/phone", "/api/update", "/api/signin", "/api/apikey", "/api/helper", "/api/network", "/api/media")) and request.method != "GET":
         return "Only the computer can change this setting.", 403
     return None
 
@@ -264,6 +265,42 @@ def start_background():
     t = threading.Timer(12, helper.auto_tidy)
     t.daemon = True
     t.start()
+
+
+# ---------- bulk media downloader ----------
+@app.get("/api/media")
+def media_status():
+    return _wrap(media.status)
+
+
+@app.post("/api/media/start")
+def media_start():
+    def go():
+        _from_app()
+        if not _is_local():
+            raise RuntimeError("Downloads save to the computer, so start them there.")
+        d = request.get_json(silent=True) or {}
+        return media.start(d.get("target", ""), d.get("sort", "hot"), d.get("t", "week"), d.get("limit", 50),
+                           tuple(d.get("kinds") or ("image", "gallery", "video", "redgifs", "gif")), bool(d.get("nsfw", False)))
+    return _wrap(go)
+
+
+@app.post("/api/media/cancel")
+def media_cancel():
+    def go():
+        _from_app()
+        return media.cancel()
+    return _wrap(go)
+
+
+@app.post("/api/media/open")
+def media_open():
+    def go():
+        _from_app()
+        if not _is_local():
+            raise RuntimeError("Only on this computer.")
+        return media.open_folder()
+    return _wrap(go)
 
 
 # ---------- Chrome extension bridge ----------

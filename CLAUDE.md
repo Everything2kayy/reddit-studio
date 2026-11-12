@@ -30,6 +30,11 @@ self-updater from GitHub tags, Control Center (`rsctl`), double-click installer.
     themes, explicit mode + `#/explicit` / `#/bookmarks` routes, context menu, Cmd+K palette, lightbox, PIN lock, panic
     key, mods (`rs_mods`), wizard. Hooks in index.html: `Studio.filterPost`, `Studio.cardClass`, `Studio.route`,
     `Studio.opt`, events `rs:feed` / `rs:post`. The main page's const/let globals are read via `G.*` (not window props).
+  - `static/views.js` (loaded after the main script) Feed Display Engine: inline views are `v-<mode>` classes on <html>
+    (split/compact/grid/masonry/magazine/reader); immersive views build `#rv` (gallery/reels/theater); per-feed view in
+    `rs_view_by_feed`. Also hover preview, focus mode, resume scroll, user tags (`rs_tags`), custom feeds (`rs_feeds`,
+    route `#/f/<name>` in studio.js), comment tools, download modal. Collections `rs_coll` (`#/c/<name>`), history `#/history`.
+  - `media.py` bulk downloader (one job at a time, `/api/media*`), saves to ~/Reddit Studio Files/Media/<feed>/.
   - `templates/index.html` the whole UI (Reader, Tools, Communities, account, phone QR, About/updates).
   - `VERSION` single source of truth. `update.json` names the update repo (`Everything2kayy/reddit-studio`).
 - `app/extension/` Chrome MV3 extension (load unpacked from `~/reddit-studio/extension`). `content.js` = shadow-DOM panel
