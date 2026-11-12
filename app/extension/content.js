@@ -2,13 +2,28 @@
 // Reddit Studio app read through this signed-in tab. Read-only: it never posts, votes,
 // comments or messages.
 (() => {
-  if (window.__redditStudio) return;
-  window.__redditStudio = true;
+  // After the extension is reloaded or updated, copies already running in open tabs lose their link to Chrome
+  // ("extension context invalidated"). Detect that, shut this copy down quietly, and let the new copy take over.
+  const ME = {};                                   // the newest copy in a tab wins; older ones step aside
+  const alive = () => { try { return window.__redditStudio === ME && !!(chrome.runtime && chrome.runtime.id); } catch { return false; } };
+  window.__redditStudio = ME;
+  if (!alive()) return;
+  const old = document.getElementById("reddit-studio-host"); if (old) old.remove();   // a previous copy's panel
+  document.getElementById("reddit-studio-tweaks")?.remove();
   const VERSION = chrome.runtime.getManifest().version;
+  let dead = false;
+  function shutdown() {
+    if (dead) return; dead = true;
+    try { document.getElementById("reddit-studio-host")?.remove(); } catch {}
+  }
+  const store = {
+    get(key, cb) { if (!alive()) return shutdown(); try { chrome.storage.local.get(key, (v) => { if (alive()) cb(v || {}); else shutdown(); }); } catch { shutdown(); } },
+    set(obj) { if (!alive()) return shutdown(); try { chrome.storage.local.set(obj); } catch { shutdown(); } },
+  };
 
   // ---------------- storage ----------------
   const S = { open: false, tab: "reader", tweaks: {}, css: "", bridge: true, keywords: "" };
-  const save = () => chrome.storage.local.set({ rs: S });
+  const save = () => store.set({ rs: S });
   const log = [];
   const note = (t) => { log.push(`${new Date().toLocaleTimeString()}  ${t}`); if (log.length > 200) log.shift(); if (S.tab === "dev") renderDev(); };
 
@@ -35,11 +50,16 @@
 
   // ---------------- bridge to the Reddit Studio app ----------------
   let bridgeOn = false, bridgeErr = "";
-  const send = (msg) => new Promise((res) => { try { chrome.runtime.sendMessage(msg, (r) => res(r || { ok: false, error: chrome.runtime.lastError?.message })); } catch (e) { res({ ok: false, error: String(e) }); } });
+  const send = (msg) => new Promise((res) => {
+    if (!alive()) { shutdown(); return res({ ok: false, error: "extension was updated; reload this tab", dead: true }); }
+    try { chrome.runtime.sendMessage(msg, (r) => res(r || { ok: false, error: chrome.runtime.lastError?.message })); }
+    catch (e) { if (!alive()) shutdown(); res({ ok: false, error: String(e), dead: !alive() }); }
+  });
   async function bridgeLoop() {
     const first = await send({ type: "status" });
     bridgeOn = !!(first.ok && S.bridge); paintStatus();
     for (;;) {
+      if (dead || !alive()) { shutdown(); return; }
       if (!S.bridge) { bridgeOn = false; await sleep(3000); continue; }
       const r = await send({ type: "checkin", body: { version: VERSION, tab: location.pathname, recent: visits } });
       const was = bridgeOn;
@@ -73,7 +93,7 @@
 
   // recent visits on reddit.com (communities, users, posts), so the app can show them under Recent
   let visits = [];
-  chrome.storage.local.get("rs_visits", ({ rs_visits }) => { visits = rs_visits || []; recordVisit(); });
+  store.get("rs_visits", ({ rs_visits }) => { visits = rs_visits || []; recordVisit(); });
   function recordVisit() {
     const p = location.pathname;
     let m, item = null;
@@ -84,7 +104,7 @@
     if (!item) return;
     const key = JSON.stringify([item.t, item.id || item.name, item.user || ""]);
     visits = [{ ...item, at: Date.now() }, ...visits.filter((v) => JSON.stringify([v.t, v.id || v.name, v.user || ""]) !== key)].slice(0, 100);
-    chrome.storage.local.set({ rs_visits: visits });
+    store.set({ rs_visits: visits });
   }
 
   // ---------------- page tweaks ----------------
@@ -377,11 +397,11 @@
   $("#x").onclick = () => setOpen(false);
   root.querySelectorAll("nav button").forEach((x) => (x.onclick = () => setTab(x.dataset.tab)));
   document.addEventListener("keydown", (e) => { if (e.altKey && (e.key === "s" || e.code === "KeyS")) { e.preventDefault(); setOpen(!S.open); } });
-  chrome.runtime.onMessage.addListener((m) => { if (m.type === "toggle") setOpen(!S.open); });
+  try { chrome.runtime.onMessage.addListener((m) => { if (m.type === "toggle") setOpen(!S.open); }); } catch {}
   let lastPath = location.pathname;
   setInterval(() => { if (location.pathname !== lastPath) { lastPath = location.pathname; setTimeout(recordVisit, 1200); reader = { path: null, view: "list" }; if (S.open && S.tab === "reader") render(); } }, 800);
 
-  chrome.storage.local.get("rs", ({ rs }) => {
+  store.get("rs", ({ rs }) => {
     Object.assign(S, rs || {});
     document.documentElement.appendChild(host);
     applyTweaks();

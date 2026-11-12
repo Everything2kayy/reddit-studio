@@ -1,5 +1,9 @@
 # Changelog
 
+## [3.2.1] - 2026-11-12
+### Fixed
+- Chrome extension 1.1.1: no more "Cannot read properties of undefined (reading 'local')" after the extension is reloaded or updated. Copies left running in open reddit.com tabs now shut down quietly, and the updated extension loads itself into tabs that are already open, so they don't need a reload.
+
 ## [3.2.0] - 2026-11-12
 ### Fixed
 - Video controls showed as giant unstyled icons on some Macs (in Reels, Gallery and the RedGIFs tab). The app now labels its files correctly and builds the player's styles into the page.

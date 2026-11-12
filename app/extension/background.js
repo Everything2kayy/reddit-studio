@@ -27,3 +27,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
 chrome.action.onClicked.addListener(tab => {
   if (tab.id) chrome.tabs.sendMessage(tab.id, { type: "toggle" }).catch(() => {});
 });
+
+// After an install or update, put the new copy into reddit.com tabs that are already open,
+// so nobody has to reload them (the old copy shuts itself down).
+chrome.runtime.onInstalled.addListener(async () => {
+  try {
+    const tabs = await chrome.tabs.query({ url: ["https://www.reddit.com/*", "https://old.reddit.com/*"] });
+    for (const t of tabs) chrome.scripting.executeScript({ target: { tabId: t.id }, files: ["content.js"] }).catch(() => {});
+  } catch {}
+});
