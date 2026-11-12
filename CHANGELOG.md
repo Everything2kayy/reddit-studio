@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.4] - 2026-11-12
+### Added
+- Helper (magic-wand button in the top bar): one-click actions for everything that used to need Terminal — set up sign-in, sign in with Chrome, check or remove sign-in, build the installer, and publish an update to GitHub.
+- Suggestions that learn: the Helper reads what's going wrong and offers the best fix first, remembers what worked, and stops pushing fixes that keep failing.
+- Error messages in the reader now come with a one-click fix button.
+- Publishing finds new update files in Downloads by itself, applies them, tags the version, and uploads it.
+
 ## [2.6.3] - 2026-11-12
 ### Added
 - Use your own Reddit API key (account panel): reads through Reddit's official API, so communities load reliably with scores and comments even when Reddit blocks public data. The key is saved only on your Mac and used read-only.

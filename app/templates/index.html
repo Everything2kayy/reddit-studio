@@ -200,6 +200,12 @@ pre.out{white-space:pre-wrap;word-break:break-word;background:var(--bg);padding:
 .apibox input{display:block;width:100%;margin:6px 0;box-sizing:border-box}
 .apibox summary{cursor:pointer;margin-bottom:6px}
 #acctbody hr{border:0;border-top:1px solid var(--line, #333);margin:14px 0}
+.helpbtn{position:relative}
+.hbadge{position:absolute;top:2px;right:2px;min-width:16px;height:16px;border-radius:8px;background:#f5a623;color:#111;font-size:10.5px;font-weight:700;line-height:16px;text-align:center;padding:0 4px}
+.sugg{border:1px solid var(--line,#333);border-radius:10px;padding:10px 12px;margin:8px 0;display:flex;gap:10px;align-items:center}
+.sugg .t{flex:1}.sugg .t b{display:block}.sugg .t span{font-size:12.5px;opacity:.75}
+.joblog{max-height:240px;overflow:auto;white-space:pre-wrap;font-size:12px}
+.actgrid{display:flex;flex-wrap:wrap;gap:6px}
 </style>
 </head>
 <body>
@@ -211,6 +217,7 @@ pre.out{white-space:pre-wrap;word-break:break-word;background:var(--bg);padding:
   </div>
   <div class="spacer"></div>
   <button id="ver" class="ghost ver" title="About Reddit Studio">v…</button>
+  <button id="helpbtn" class="ghost helpbtn" title="Helper: one-click fixes and actions"><span class="ms">auto_fix_high</span><span id="helpbadge" class="hbadge" hidden></span></button>
   <button id="acct" class="ghost acct" title="Reddit account"><span class="dot"></span><span id="acctlabel">Public mode</span></button>
   <select id="theme" aria-label="Theme">
     <option value="midnight">Midnight</option><option value="daylight">Daylight</option>
@@ -305,6 +312,13 @@ pre.out{white-space:pre-wrap;word-break:break-word;background:var(--bg);padding:
     <div style="display:flex;align-items:center;gap:8px"><h2 id="accttitle" style="margin:0;flex:1;font-size:18px">Reddit account</h2>
       <button class="ghost" id="acctclose" aria-label="Close">✕</button></div>
     <div id="acctbody"></div>
+  </div>
+</div>
+<div class="modalbg" id="helpmodal" hidden>
+  <div class="modal" role="dialog" aria-labelledby="helptitle">
+    <div style="display:flex;align-items:center;gap:8px"><h2 id="helptitle" style="margin:0;flex:1;font-size:18px">Helper</h2>
+      <button class="ghost" id="helpclose" aria-label="Close">✕</button></div>
+    <div id="helpbody" style="margin-top:10px"></div>
   </div>
 </div>
 <div class="modalbg" id="dirmodal" hidden>
@@ -541,22 +555,23 @@ function acctRender() {
 function acctRenderInner() {
   const a = account, b = $("#acctbody");
   if (a.available) {
-    b.innerHTML = `<p>Signed in as <b>u/${esc(a.user || "?")}</b> using your saved <code>rdt login</code>. You get full data: scores, nested comments, sign-in-only communities, plus your <b>Home</b> feed and <b>Saved</b> posts.</p>
+    b.innerHTML = `<p>Signed in as <b>u/${esc(a.user || "?")}</b> through your Chrome sign-in. You get full data: scores, nested comments, sign-in-only communities, plus your <b>Home</b> feed and <b>Saved</b> posts.</p>
       <p class="muted" style="font-size:13px">Reddit Studio only reads with this sign-in; it never posts, votes, or messages.</p>
       ${a.error ? `<p class="error">${esc(a.error)}</p>` : ""}
-      <button id="signoff">${icon("logout")}Use public data instead</button>`;
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button ${a.error ? 'class="primary"' : ""} id="resignin">${icon("refresh")}Refresh sign-in</button>
+      <button id="signoff">${icon("logout")}Use public data instead</button></div>`;
     $("#signoff").onclick = () => toggleSignin("off");
+    $("#resignin").onclick = () => helperRun("signin");
   } else if (a.off && a.cred_file) {
     b.innerHTML = `<p>Your Reddit sign-in is saved but switched off, so Reddit Studio is using public data.</p><button class="primary" id="signon">${icon("login")}Use my sign-in again</button>`;
     $("#signon").onclick = () => toggleSignin("on");
   } else {
     b.innerHTML = `<p>${a.rss ? "Reddit is blocking public data, so you're in <b>limited mode</b> (RSS feeds: no scores or nested replies)." : "You're using public data."}</p>
-      <p>To sign in, open <b>Terminal</b> and type these, one at a time:</p>
-      <pre class="out">uv tool install rdt-cli
-rdt login</pre>
-      <p class="muted" style="font-size:13px">Log into Reddit in Chrome first, ideally with a <b>secondary account</b>. <code>rdt login</code> copies that sign-in (macOS will ask for your Mac password to let it read Chrome's cookies). Then click the button below. Reddit Studio reinstalls itself with a newer Python the next time you run the installer, if needed.</p>
+      <p class="muted" style="font-size:13px">Log into Reddit in Chrome first, ideally with a <b>secondary account</b>. Then click the button: Reddit Studio copies that sign-in (macOS may ask for your Mac password so it can read Chrome's saved data).</p>
       ${a.error ? `<p class="error">${esc(a.error)}</p>` : ""}
-      <button class="primary" id="recheck">${icon("refresh")}I've signed in, check again</button>`;
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="primary" id="dosignin">${icon("login")}Sign in with Chrome</button>
+      <button id="recheck">${icon("refresh")}Check again</button></div>`;
+    $("#dosignin").onclick = () => helperRun("signin");
     $("#recheck").onclick = async () => { await refreshAccount(); acctRender(); toast(account.available ? "Signed in" : "Not signed in yet"); };
   }
 }
@@ -564,11 +579,78 @@ async function toggleSignin(v) {
   try { await getJSON("/api/signin/" + v, { method: "POST", headers: { "X-Reddit-Studio": "1" } }); } catch (e) { return toast(e.message); }
   await refreshAccount(); acctRender(); if (feed.target) loadFeed(feed.target);
 }
-$("#acct").onclick = async () => { await refreshAccount(); acctRender(); $("#acctmodal").hidden = false; };
+$("#acct").onclick = () => openAccount();
 $("#acctclose").onclick = () => ($("#acctmodal").hidden = true);
 $("#acctmodal").onclick = e => { if (e.target.id === "acctmodal") $("#acctmodal").hidden = true; };
 document.addEventListener("keydown", e => { if (e.key === "Escape") $("#acctmodal").hidden = true; });
 refreshAccount(); setInterval(refreshAccount, 60000);
+
+/* ---------------- helper: one-click actions ---------------- */
+let helperState = null, helperTimer = null;
+async function refreshHelper(err) {
+  try { helperState = await getJSON("/api/helper" + (err ? "?err=" + encodeURIComponent(err) : "")); } catch { return null; }
+  if (helperState.local === false) { $("#helpbtn").hidden = true; return null; }
+  const n = (helperState.suggestions || []).length, bd = $("#helpbadge");
+  bd.hidden = !n; bd.textContent = n;
+  return helperState;
+}
+function suggHTML(s) {
+  return `<div class="sugg"><div class="t"><b>${esc(s.title)}</b><span>${esc(s.why)}</span></div>
+    <button class="primary" data-sugg="${esc(s.action)}" data-kind="${esc(s.kind)}">${s.kind === "panel" ? "Open" : "Do it"}</button></div>`;
+}
+function wireSugg(root) {
+  root.querySelectorAll("[data-sugg]").forEach(b => b.onclick = () => {
+    if (b.dataset.kind === "panel") { $("#helpmodal").hidden = true; return openAccount(); }
+    helperRun(b.dataset.sugg);
+  });
+}
+function helperRender() {
+  const h = helperState; if (!h) return;
+  const j = h.job || {}, b = $("#helpbody");
+  const sug = (h.suggestions || []);
+  b.innerHTML = `
+    ${j.id ? `<div><b>${esc(j.title)}</b> ${j.running ? `<span class="muted">working…</span>` : j.ok ? `<span style="color:#2bb673">done</span>` : `<span class="error">didn't work</span>`}
+      <pre class="out joblog" id="joblog">${esc(j.log || "")}</pre></div>` : ""}
+    <p class="muted" style="font-size:13px;margin:8px 0 2px">${sug.length ? "Suggested for you" : "Everything looks good. Nothing needs fixing right now."}</p>
+    ${sug.map(suggHTML).join("")}
+    <hr><p class="muted" style="font-size:13px;margin:4px 0 8px">All actions</p>
+    <div class="actgrid">${(h.actions || []).map(a => `<button data-act="${esc(a.id)}" ${j.running ? "disabled" : ""}>${esc(a.title)}</button>`).join("")}
+      <button id="hupd">${icon("system_update")}Check for updates</button></div>
+    <p class="muted" style="font-size:12px;margin-top:10px">${h.source_dir ? `Source folder: ${esc(h.source_dir)}` : "Source folder: not found yet (only needed for publishing)."}
+      ${h.last_published ? ` · Last published ${esc(h.last_published)}` : ""}</p>`;
+  wireSugg(b);
+  b.querySelectorAll("[data-act]").forEach(x => x.onclick = () => helperRun(x.dataset.act));
+  $("#hupd").onclick = () => { $("#helpmodal").hidden = true; $("#ver").click(); };
+  const lg = $("#joblog"); if (lg) lg.scrollTop = lg.scrollHeight;
+}
+async function helperRun(action) {
+  try { await getJSON("/api/helper/run/" + action, { method: "POST", headers: { "X-Reddit-Studio": "1" } }); }
+  catch (e) { return toast(e.message); }
+  $("#acctmodal").hidden = true; $("#helpmodal").hidden = false;
+  await refreshHelper(); helperRender(); pollHelper();
+}
+function pollHelper() {
+  clearTimeout(helperTimer);
+  helperTimer = setTimeout(async () => {
+    const was = helperState && helperState.job && helperState.job.running;
+    await refreshHelper(); if (!$("#helpmodal").hidden) helperRender();
+    const j = helperState && helperState.job;
+    if (j && j.running) return pollHelper();
+    if (was && j) { toast(j.ok ? `${j.title}: done` : `${j.title}: didn't work`); await refreshAccount(); await refreshHelper(); if (!$("#helpmodal").hidden) helperRender(); if (j.ok && feed.target) loadFeed(feed.target); }
+  }, 900);
+}
+async function openAccount() { await refreshAccount(); acctRender(); $("#acctmodal").hidden = false; }
+$("#helpbtn").onclick = async () => { await refreshHelper(); helperRender(); $("#helpmodal").hidden = false; if (helperState && helperState.job.running) pollHelper(); };
+$("#helpclose").onclick = () => ($("#helpmodal").hidden = true);
+$("#helpmodal").onclick = e => { if (e.target.id === "helpmodal") $("#helpmodal").hidden = true; };
+document.addEventListener("keydown", e => { if (e.key === "Escape") $("#helpmodal").hidden = true; });
+refreshHelper(); setInterval(refreshHelper, 60000);
+/* a fix button under errors, picked from the helper's suggestions */
+async function fixButton(el, err) {
+  const h = await refreshHelper(err); const s = h && (h.suggestions || [])[0]; if (!s || !el.isConnected) return;
+  el.insertAdjacentHTML("beforeend", ` <button class="primary" data-sugg="${esc(s.action)}" data-kind="${esc(s.kind)}">${icon("auto_fix_high")}${esc(s.title)}</button>`);
+  wireSugg(el);
+}
 
 /* ---------------- reader: feed ---------------- */
 const feed = { target: "", posts: [], after: null, loaded: false, busy: false, filter: "all", req: 0 };
@@ -628,6 +710,7 @@ async function loadFeed(target, more) {
     if (req !== feed.req) return;
     $("#feedfoot").innerHTML = `<div class="empty error">${esc(err.message)}<br><br><button id="retry"><span class="ms">refresh</span>Try again</button></div>`;
     $("#retry").onclick = () => loadFeed(target, more);
+    fixButton($("#retry").parentElement, err.message);
   } finally { if (req === feed.req) feed.busy = false; }
 }
 

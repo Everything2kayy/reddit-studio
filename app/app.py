@@ -7,6 +7,7 @@ import threading
 from flask import Flask, jsonify, redirect, render_template, request, send_from_directory
 
 import reddit_tools as rt
+import helper
 import updater
 from reddit_tools import REGISTRY
 
@@ -50,7 +51,7 @@ def gate():
     if not hmac.compare_digest(request.cookies.get("rs_t", ""), phone["token"]):
         return ("Not signed in. Open Reddit Studio on your computer, click Phone, "
                 "and scan the QR code."), 401
-    if request.path.startswith(("/api/phone", "/api/update", "/api/signin", "/api/apikey")) and request.method != "GET":
+    if request.path.startswith(("/api/phone", "/api/update", "/api/signin", "/api/apikey", "/api/helper")) and request.method != "GET":
         return "Only the computer can change this setting.", 403
     return None
 
@@ -188,6 +189,23 @@ def apikey_clear():
     def go():
         _from_app()
         return rt.api_clear()
+    return _wrap(go)
+
+
+# ---------- helper: one-click actions + suggestions ----------
+helper.AFTER.append(lambda action, ok: (rt._cache.clear(), rt.SIGNED.update(mtime=None, error=None)) if ok else None)
+
+
+@app.get("/api/helper")
+def helper_overview():
+    return _wrap(lambda: helper.overview(rt.signed_status(), request.args.get("err", "")[:300]) if _is_local() else {"local": False})
+
+
+@app.post("/api/helper/run/<action>")
+def helper_run(action):
+    def go():
+        _from_app()
+        return helper.run(action)
     return _wrap(go)
 
 

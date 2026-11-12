@@ -13,11 +13,17 @@ self-updater from GitHub tags, Control Center (`rsctl`), double-click installer.
     tarball, validates (safe paths, required files, VERSION == tag), backs up to `.old/`, swaps files, pip-installs if
     requirements changed, smoke-tests, auto-rolls back on failure. `REDDIT_STUDIO_UPDATE_MIRROR` env var points it at a
     test server. CLI: `python updater.py status|check|install|rollback`.
+  - `helper.py` Helper panel backend: fixed whitelist of one-click actions (install_signin, signin, signin_status,
+    signout, publish, build_installer) run one at a time in a thread with a polled log; `suggestions()` ranks fixes using
+    account state + the error text, weighted by learned success rates in `~/.config/reddit-studio/memory.json`
+    (also remembers source folder and applied patch files). `publish` git-am's `~/Downloads/reddit-studio-X.Y.Z.patch`
+    files newer than VERSION, tags vVERSION, pushes main + tag. Endpoints `/api/helper`, `/api/helper/run/<action>`.
+  - API key: `~/.config/reddit-studio/api_key.json` (0600), app-only OAuth via oauth.reddit.com, tried first in `fetch`.
   - `menubar.py` runs the server in-process, polls `updater.STATE["restart_pending"]` and re-execs itself; background
     auto-update thread; Control Center submenu calls `rsctl`.
   - `rsctl` bash Control Center: `rsctl` (clickable list, 23 options) or `rsctl <action>`.
   - `templates/index.html` the whole UI (Reader, Tools, Communities, account, phone QR, About/updates).
-  - `VERSION` single source of truth. `update.json` names the update repo (currently placeholder `OWNER/reddit-studio`).
+  - `VERSION` single source of truth. `update.json` names the update repo (`Everything2kayy/reddit-studio`).
 - `installer/build.py` → `dist/Reddit-Studio-<version>.zip` (embeds all of `app/` into `Reddit Studio.command`).
 - `extras/feed-studio.user.js` userscript for Reddit + X (also served from `app/static/`).
 

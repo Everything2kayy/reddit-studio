@@ -290,9 +290,9 @@ def fetch(path, **params):
                 # Reddit often answers 403 to a stale or flagged sign-in even for public pages,
                 # so try public data before blaming the community.
                 SIGNED["error"] = ("Reddit refused your signed-in request (403). If this keeps happening, "
-                                   "run `rdt login` in Terminal to refresh your sign-in.")
+                                   "click Refresh sign-in in the account panel.")
             elif kind in ("SessionExpiredError", "AuthRequiredError") or "HTML instead of JSON" in str(e):
-                SIGNED["error"] = "Your Reddit sign-in expired. Run `rdt login` in Terminal to refresh it."
+                SIGNED["error"] = "Your Reddit sign-in expired. Click Refresh sign-in in the account panel."
             else:
                 SIGNED["error"] = f"Signed-in request failed ({kind}); using public data instead."
             # fall through to public data / RSS
