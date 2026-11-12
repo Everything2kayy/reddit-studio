@@ -197,6 +197,9 @@ pre.out{white-space:pre-wrap;word-break:break-word;background:var(--bg);padding:
   #tools{flex-direction:column}
   #tools aside{width:auto;max-height:40vh}
 }
+.apibox input{display:block;width:100%;margin:6px 0;box-sizing:border-box}
+.apibox summary{cursor:pointer;margin-bottom:6px}
+#acctbody hr{border:0;border-top:1px solid var(--line, #333);margin:14px 0}
 </style>
 </head>
 <body>
@@ -490,11 +493,52 @@ async function refreshAccount() {
   try { account = await getJSON("/api/status"); } catch { return; }
   const b = $("#acct");
   b.classList.toggle("on", account.available); b.classList.toggle("warn", !account.available && (account.rss || !!account.error));
-  $("#acctlabel").textContent = account.available ? `u/${account.user || "signed in"}` : account.rss ? "Limited mode" : "Public mode";
-  b.title = account.error || (account.available ? "Signed in with rdt-cli" : "Not signed in");
+  const api = account.api || {};
+  b.classList.toggle("on", account.available || !!api.active);
+  if (api.active) b.classList.remove("warn");
+  $("#acctlabel").textContent = api.active ? "API key" : account.available ? `u/${account.user || "signed in"}` : account.rss ? "Limited mode" : "Public mode";
+  b.title = api.error || account.error || (api.active ? "Reading through Reddit's official API with your key" : account.available ? "Signed in with rdt-cli" : "Not signed in");
   renderChips();
 }
+function apiSection(a) {
+  const k = a.api || {};
+  if (k.configured) return `<div class="apibox"><p><b>Your API key</b> ${k.active ? "is in use" : "is saved"} (client ID ${esc(k.client_id)}${k.username ? `, u/${esc(k.username)}` : ""}). Reddit Studio reads through Reddit's official API first, so public communities load reliably with scores and comments.</p>
+      ${k.error ? `<p class="error">${esc(k.error)}</p>` : ""}
+      <button id="apiclear">${icon("logout")}Remove API key</button></div><hr>`;
+  return `<details class="apibox"${a.rss || a.error ? " open" : ""}><summary><b>Use your own API key</b> (most reliable)</summary>
+      <ol style="font-size:13px;padding-left:18px">
+        <li>Open <b>reddit.com/prefs/apps</b> while logged in and click <b>create another app</b>.</li>
+        <li>Pick any name, choose <b>script</b>, and put <code>http://localhost:8080</code> as the redirect URI.</li>
+        <li>Copy the ID under the app name and the <b>secret</b>, and paste them here.</li>
+      </ol>
+      <input id="apiid" placeholder="Client ID" autocomplete="off" spellcheck="false">
+      <input id="apisecret" placeholder="Secret" type="password" autocomplete="off">
+      <input id="apiuser" placeholder="Your Reddit username (optional)" autocomplete="off" spellcheck="false">
+      <p class="muted" style="font-size:12px">Saved only on this Mac. Read-only: Reddit Studio never posts, votes, or messages.</p>
+      <button class="primary" id="apisave">${icon("login")}Save and test key</button></details><hr>`;
+}
+function wireApi() {
+  const s = $("#apisave"), c = $("#apiclear");
+  if (s) s.onclick = async () => {
+    s.disabled = true;
+    try {
+      await getJSON("/api/apikey", { method: "POST", headers: { "X-Reddit-Studio": "1", "Content-Type": "application/json" },
+        body: JSON.stringify({ client_id: $("#apiid").value, client_secret: $("#apisecret").value, username: $("#apiuser").value }) });
+      toast("API key works");
+    } catch (e) { toast(e.message); }
+    s.disabled = false; await refreshAccount(); acctRender(); if (feed.target) loadFeed(feed.target);
+  };
+  if (c) c.onclick = async () => {
+    try { await getJSON("/api/apikey/clear", { method: "POST", headers: { "X-Reddit-Studio": "1" } }); } catch (e) { return toast(e.message); }
+    await refreshAccount(); acctRender(); if (feed.target) loadFeed(feed.target);
+  };
+}
 function acctRender() {
+  acctRenderInner();
+  $("#acctbody").insertAdjacentHTML("afterbegin", apiSection(account));
+  wireApi();
+}
+function acctRenderInner() {
   const a = account, b = $("#acctbody");
   if (a.available) {
     b.innerHTML = `<p>Signed in as <b>u/${esc(a.user || "?")}</b> using your saved <code>rdt login</code>. You get full data: scores, nested comments, sign-in-only communities, plus your <b>Home</b> feed and <b>Saved</b> posts.</p>

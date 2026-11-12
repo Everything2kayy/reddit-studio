@@ -50,7 +50,7 @@ def gate():
     if not hmac.compare_digest(request.cookies.get("rs_t", ""), phone["token"]):
         return ("Not signed in. Open Reddit Studio on your computer, click Phone, "
                 "and scan the QR code."), 401
-    if request.path.startswith(("/api/phone", "/api/update", "/api/signin")) and request.method != "GET":
+    if request.path.startswith(("/api/phone", "/api/update", "/api/signin", "/api/apikey")) and request.method != "GET":
         return "Only the computer can change this setting.", 403
     return None
 
@@ -171,6 +171,23 @@ def signin_toggle(onoff):
         rt.SIGNED["off"] = (onoff == "off")
         rt._cache.clear()
         return rt.signed_status()
+    return _wrap(go)
+
+
+@app.post("/api/apikey")
+def apikey_set():
+    def go():
+        _from_app()
+        d = request.get_json(silent=True) or {}
+        return rt.api_set(d.get("client_id"), d.get("client_secret"), d.get("username", ""))
+    return _wrap(go)
+
+
+@app.post("/api/apikey/clear")
+def apikey_clear():
+    def go():
+        _from_app()
+        return rt.api_clear()
     return _wrap(go)
 
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.6.3] - 2026-11-12
+### Added
+- Use your own Reddit API key (account panel): reads through Reddit's official API, so communities load reliably with scores and comments even when Reddit blocks public data. The key is saved only on your Mac and used read-only.
+
 ## [2.6.2] - 2026-11-12
 ### Fixed
 - Public communities like r/popular no longer show "Reddit returned 403" when your sign-in is refused; Reddit Studio falls back to public data instead.

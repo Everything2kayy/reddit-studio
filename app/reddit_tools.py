@@ -47,7 +47,7 @@ NO_RSS = ("Reddit now blocks this information unless you have an approved API ke
           "so this tool can't run in no-key mode.")
 
 
-def _get(url, accept):
+def _get(url, accept, headers=None):
     """One rate-limited HTTP GET. Returns (status, body_text)."""
     with _lock:
         now = time.time()
@@ -60,7 +60,7 @@ def _get(url, accept):
         if wait > 0:
             time.sleep(wait)
         try:
-            req = Request(url, headers={"User-Agent": UA, "Accept": accept})
+            req = Request(url, headers={"User-Agent": UA, "Accept": accept, **(headers or {})})
             with urlopen(req, timeout=25) as r:
                 try:
                     _rl["remaining"] = float(r.headers.get("x-ratelimit-remaining"))
@@ -81,6 +81,138 @@ def _get(url, accept):
             raise RuntimeError(f"Couldn't reach Reddit: {e.reason}")
         finally:
             _last[0] = time.time()
+
+
+# ---------- your own API key (optional, most reliable) ----------
+# Create a free "script" app at reddit.com/prefs/apps and paste its client ID and secret
+# into the account panel. Reddit Studio then reads through Reddit's official API
+# (oauth.reddit.com) with an app-only token: read access only, never posts or votes.
+API_FILE = os.path.expanduser("~/.config/reddit-studio/api_key.json")
+API = {"token": None, "expires": 0.0, "error": None, "off": False}
+OAUTH = "https://oauth.reddit.com"
+
+
+def _api_cfg():
+    try:
+        with open(API_FILE) as f:
+            c = json.load(f)
+        if c.get("client_id") and c.get("client_secret"):
+            return c
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def _api_token(force=False):
+    import base64
+    c = _api_cfg()
+    if not c or API["off"]:
+        return None
+    if API["token"] and not force and time.time() < API["expires"] - 60:
+        return API["token"]
+    auth = base64.b64encode(f"{c['client_id']}:{c['client_secret']}".encode()).decode()
+    req = Request("https://www.reddit.com/api/v1/access_token",
+                  data=b"grant_type=client_credentials", method="POST",
+                  headers={"User-Agent": _api_ua(c), "Authorization": "Basic " + auth,
+                           "Content-Type": "application/x-www-form-urlencoded"})
+    try:
+        with urlopen(req, timeout=25) as r:
+            d = json.loads(r.read().decode("utf-8", "replace"))
+    except HTTPError as e:
+        API.update(token=None, error=("Reddit rejected your API key. Check the client ID and secret, "
+                                      "and that the app type is \"script\"." if e.code in (400, 401)
+                                      else f"Reddit's sign-in server returned HTTP {e.code}."))
+        return None
+    except (URLError, OSError, ValueError) as e:
+        API.update(token=None, error=f"Couldn't reach Reddit to use your API key ({e}).")
+        return None
+    if not d.get("access_token"):
+        API.update(token=None, error="Reddit rejected your API key: " + str(d.get("error") or "no token"))
+        return None
+    API.update(token=d["access_token"], expires=time.time() + float(d.get("expires_in") or 3600), error=None)
+    return API["token"]
+
+
+def _api_ua(c=None):
+    c = c or _api_cfg() or {}
+    who = re.sub(r"^/?u/", "", (c.get("username") or "").strip())
+    return f"macos:reddit-studio:{_version()} (by /u/{who})" if who else UA
+
+
+def _version():
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "VERSION")) as f:
+            return f.read().strip()
+    except OSError:
+        return "2"
+
+
+def api_set(client_id, client_secret, username=""):
+    client_id, client_secret = (client_id or "").strip(), (client_secret or "").strip()
+    if not client_id or not client_secret:
+        raise ValueError("Paste both the client ID and the secret.")
+    os.makedirs(os.path.dirname(API_FILE), exist_ok=True)
+    fd = os.open(API_FILE, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        json.dump({"client_id": client_id, "client_secret": client_secret,
+                   "username": re.sub(r"^/?u/", "", (username or "").strip())}, f)
+    API.update(token=None, expires=0.0, error=None, off=False)
+    _cache.clear()
+    if not _api_token(force=True):
+        raise ValueError(API["error"] or "Reddit didn't accept that key.")
+    return api_status()
+
+
+def api_clear():
+    try:
+        os.remove(API_FILE)
+    except OSError:
+        pass
+    API.update(token=None, expires=0.0, error=None)
+    _cache.clear()
+    return api_status()
+
+
+def api_status():
+    c = _api_cfg()
+    return {"configured": bool(c), "client_id": (c["client_id"][:4] + "…") if c else "",
+            "username": (c or {}).get("username", ""), "active": bool(c) and not API["off"] and not API["error"],
+            "error": API["error"]}
+
+
+def _fetch_api(path, params):
+    key = "api:" + path + "?" + urlencode(sorted(params.items()))
+    hit = _cache.get(key)
+    if hit and time.time() - hit[0] < CACHE_TTL:
+        return hit[1]
+    for attempt in (0, 1):
+        tok = _api_token(force=bool(attempt))
+        if not tok:
+            return None
+        url = f"{OAUTH}{'' if path == '/' else path}?{urlencode({**params, 'raw_json': 1})}"
+        code, body = _get(url, "application/json", {"Authorization": "bearer " + tok, "User-Agent": _api_ua()})
+        if code == 401 and not attempt:
+            continue                     # token expired early: get a new one once
+        break
+    if code == 200:
+        try:
+            data = json.loads(body)
+        except ValueError:
+            raise RuntimeError("Reddit sent back a page instead of data.")
+        API["error"] = None
+        _cache[key] = (time.time(), data)
+        return data
+    if code == 404:
+        raise RuntimeError("Reddit says that doesn't exist (404). Check the spelling.")
+    if code == 403:
+        try:
+            reason = json.loads(body).get("reason")
+        except (ValueError, AttributeError):
+            reason = None
+        raise RuntimeError(f"Reddit says that community is {reason}." if reason
+                           else "Reddit returned 403: it's private, banned, or your key can't see it.")
+    API["error"] = f"API request failed (HTTP {code}); trying other sources."
+    return None
 
 
 # ---------- signed-in mode (optional, via rdt-cli) ----------
@@ -121,7 +253,8 @@ def _signed_client():
 
 def signed_status():
     return {"available": bool(_signed_client()), "user": SIGNED["user"], "error": SIGNED["error"],
-            "off": SIGNED["off"], "rss": MODE["rss"], "cred_file": os.path.exists(CRED_FILE)}
+            "off": SIGNED["off"], "rss": MODE["rss"], "cred_file": os.path.exists(CRED_FILE),
+            "api": api_status()}
 
 
 def _fetch_signed(client, path, params):
@@ -139,6 +272,10 @@ def _fetch_signed(client, path, params):
 
 def fetch(path, **params):
     params = {k: v for k, v in params.items() if v not in (None, "")}
+    if path != "/" and not re.fullmatch(r"/user/[^/]+/(saved|upvoted)", path) and _api_cfg() and not API["off"]:
+        data = _fetch_api(path, params)
+        if data is not None:
+            return data
     client = _signed_client()
     if client is not None:
         try:
