@@ -9,6 +9,7 @@ from flask import Flask, jsonify, redirect, render_template, request, send_from_
 import reddit_tools as rt
 import helper
 import bridge
+import network
 import updater
 from reddit_tools import REGISTRY
 
@@ -52,7 +53,7 @@ def gate():
     if not hmac.compare_digest(request.cookies.get("rs_t", ""), phone["token"]):
         return ("Not signed in. Open Reddit Studio on your computer, click Phone, "
                 "and scan the QR code."), 401
-    if request.path.startswith(("/api/phone", "/api/update", "/api/signin", "/api/apikey", "/api/helper")) and request.method != "GET":
+    if request.path.startswith(("/api/phone", "/api/update", "/api/signin", "/api/apikey", "/api/helper", "/api/network")) and request.method != "GET":
         return "Only the computer can change this setting.", 403
     return None
 
@@ -221,6 +222,50 @@ def redgifs_video(rid):
     return redirect((r["sd"] if want_sd else r["hd"]) or r["sd"], code=302)
 
 
+# ---------- network (proxy) ----------
+@app.get("/api/network")
+def network_status():
+    return _wrap(network.status)
+
+
+@app.post("/api/network")
+def network_save():
+    def go():
+        _from_app()
+        if not _is_local():
+            raise RuntimeError("Only on this computer.")
+        d = request.get_json(silent=True) or {}
+        res = network.save(bool(d.get("on")), d.get("url", ""))
+        rt._cache.clear()
+        rt.MODE.update(rss=False, since=0.0)
+        return res
+    return _wrap(go)
+
+
+@app.post("/api/network/test")
+def network_test():
+    def go():
+        _from_app()
+        d = request.get_json(silent=True) or {}
+        return network.test(d.get("url") or None)
+    return _wrap(go)
+
+
+@app.post("/api/helper/tidy_auto")
+def helper_tidy_auto():
+    def go():
+        _from_app()
+        return helper.set_tidy_auto((request.get_json(silent=True) or {}).get("on", True))
+    return _wrap(go)
+
+
+def start_background():
+    """Things to do shortly after the app starts (and so after every update, which restarts it)."""
+    t = threading.Timer(12, helper.auto_tidy)
+    t.daemon = True
+    t.start()
+
+
 # ---------- Chrome extension bridge ----------
 @app.post("/api/bridge/checkin")
 def bridge_checkin():
@@ -305,4 +350,5 @@ def phone_off():
 
 
 if __name__ == "__main__":
+    start_background()
     app.run(host="127.0.0.1", port=5055, debug=False)

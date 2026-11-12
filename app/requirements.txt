@@ -3,3 +3,4 @@ qrcode>=7.4
 rdt-cli>=0.4; python_version >= "3.10"
 rumps>=0.4; sys_platform == "darwin"
 redgifs>=2.4
+PySocks>=1.7

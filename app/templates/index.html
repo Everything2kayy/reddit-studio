@@ -623,6 +623,8 @@ function helperRender() {
     <hr><p class="muted" style="font-size:13px;margin:4px 0 8px">All actions</p>
     <div class="actgrid">${(h.actions || []).map(a => `<button data-act="${esc(a.id)}" ${j.running ? "disabled" : ""}>${esc(a.title)}</button>`).join("")}
       <button id="hupd">${icon("system_update")}Check for updates</button></div>
+    ${h.tidy ? `<div class="sugg"><div class="t"><b>Downloads</b><span>${h.tidy.clutter.length ? `${h.tidy.clutter.length} Reddit Studio file(s) to tidy` : "Tidy"} · auto-tidy ${h.tidy.auto ? "on" : "off"}${h.tidy.last ? ` · last: moved ${h.tidy.last.moved}, freed ${esc(h.tidy.last.freed)}` : ""}</span></div>
+      <button data-act="tidy" ${j.running ? "disabled" : ""}>Tidy now</button></div>` : ""}
     <p class="muted" style="font-size:12px;margin-top:10px">${h.source_dir ? `Source folder: ${esc(h.source_dir)}` : "Source folder: not found yet (only needed for publishing)."}
       ${h.last_published ? ` · Last published ${esc(h.last_published)}` : ""}</p>`;
   wireSugg(b);

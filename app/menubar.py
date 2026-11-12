@@ -91,6 +91,7 @@ def main():
     import updater
     import app as studio
     studio.app.config["CAN_RESTART"] = True
+    studio.start_background()
 
     def background_updates():
         """Check now and every few hours; install automatically if that's switched on."""

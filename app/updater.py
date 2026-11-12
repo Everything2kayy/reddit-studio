@@ -12,6 +12,7 @@ shows its changelog, and installs it in place:
 Command line:  python updater.py [status|check|install|rollback]
 """
 import json
+import network
 import os
 import re
 import shutil
@@ -27,7 +28,7 @@ from urllib.request import Request, urlopen
 HERE = os.path.dirname(os.path.abspath(__file__))
 BACKUPS = os.path.join(HERE, ".old")
 USER_SETTINGS = os.path.join(HERE, ".user-settings.json")
-REQUIRED = ["app.py", "helper.py", "bridge.py", "reddit_tools.py", "menubar.py", "updater.py", "VERSION",
+REQUIRED = ["app.py", "helper.py", "bridge.py", "network.py", "tidy.py", "reddit_tools.py", "menubar.py", "updater.py", "VERSION",
             "requirements.txt", "templates/index.html"]
 KEEP = {".venv", ".old", ".user-settings.json", "server.log"}   # never touched by updates
 UA = "reddit-studio-updater"
@@ -88,7 +89,7 @@ if os.environ.get("REDDIT_STUDIO_UPDATE_MIRROR"):        # testing / private mir
 
 def _get(url, timeout=25):
     req = Request(url, headers={"User-Agent": UA, "Accept": "application/vnd.github+json"})
-    with urlopen(req, timeout=timeout) as r:
+    with network.urlopen(req, timeout=timeout) as r:
         return r.read()
 
 
@@ -205,15 +206,20 @@ def _restore(path):
     _copy_tree(path, HERE)
 
 
+def _direct_env():
+    """Environment without proxy variables (pip can't use a SOCKS proxy from the environment)."""
+    return {k: v for k, v in os.environ.items() if k.lower() not in ("http_proxy", "https_proxy", "all_proxy")}
+
+
 def _pip(req_file):
     return subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", req_file],
-                          capture_output=True, text=True, timeout=900)
+                          capture_output=True, text=True, timeout=900, env=_direct_env())
 
 
 def _smoke_test():
     return subprocess.run([sys.executable, "-c", "import app, reddit_tools, updater; "
                            "c = app.app.test_client(); assert c.get('/api/tools').status_code == 200"],
-                          cwd=HERE, capture_output=True, text=True, timeout=120)
+                          cwd=HERE, capture_output=True, text=True, timeout=120, env=_direct_env())
 
 
 def install(tag=None):

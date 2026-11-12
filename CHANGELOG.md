@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.9.0] - 2026-11-12
+### Added
+- Network settings (Settings › Network): send Reddit Studio's traffic through an HTTP or SOCKS5 proxy, with one-click presets for Tor and Tor Browser, a Test connection button that says whether Reddit answers through it, and Test without proxy for comparison. Off by default; with it off, nothing about your Mac's connection changes.
+- Tidy Downloads (Settings › Storage, and the Helper): Reddit Studio's own files — update files, installers, project snapshots, settings exports and your source folder — move out of Downloads into ~/Reddit Studio Files (Updates, Installers, Archive, Exports, Source). Runs automatically after every update, after publishing, and once a day; old copies are pruned (10 update files, 2 installers, 3 snapshots, 3 app backups). Nothing else in Downloads is ever touched.
+- The Helper finds new update files in Downloads or in Reddit Studio Files › Updates › Inbox.
+
 ## [2.8.0] - 2026-11-12
 ### Fixed
 - Windows (Helper, account, settings and others) now fit the screen and scroll, so they never block the app.

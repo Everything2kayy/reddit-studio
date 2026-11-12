@@ -8,6 +8,7 @@ unauthenticated rate limit (~10 requests/minute).
 import csv
 import io
 import json
+import network
 import os
 import re
 import threading
@@ -61,7 +62,7 @@ def _get(url, accept, headers=None):
             time.sleep(wait)
         try:
             req = Request(url, headers={"User-Agent": UA, "Accept": accept, **(headers or {})})
-            with urlopen(req, timeout=25) as r:
+            with network.urlopen(req, timeout=25) as r:
                 try:
                     _rl["remaining"] = float(r.headers.get("x-ratelimit-remaining"))
                     _rl["reset_at"] = time.time() + float(r.headers.get("x-ratelimit-reset"))
@@ -116,7 +117,7 @@ def _api_token(force=False):
                   headers={"User-Agent": _api_ua(c), "Authorization": "Basic " + auth,
                            "Content-Type": "application/x-www-form-urlencoded"})
     try:
-        with urlopen(req, timeout=25) as r:
+        with network.urlopen(req, timeout=25) as r:
             d = json.loads(r.read().decode("utf-8", "replace"))
     except HTTPError as e:
         API.update(token=None, error=("Reddit rejected your API key. Check the client ID and secret, "

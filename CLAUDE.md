@@ -22,6 +22,10 @@ self-updater from GitHub tags, Control Center (`rsctl`), double-click installer.
   - `menubar.py` runs the server in-process, polls `updater.STATE["restart_pending"]` and re-execs itself; background
     auto-update thread; Control Center submenu calls `rsctl`.
   - `rsctl` bash Control Center: `rsctl` (clickable list, 23 options) or `rsctl <action>`.
+  - `network.py` proxy setting (`~/.config/reddit-studio/network.json`): `network.urlopen` used by reddit_tools and
+    updater; sets proxy env vars only while on (restores the originals when off); `test()` checks Reddit via the proxy.
+  - `tidy.py` moves only Reddit Studio's own files from ~/Downloads into ~/Reddit Studio Files and prunes old copies;
+    `helper.auto_tidy()` runs 12 s after start (so after each update) and after publishing; toggle `tidy_auto` in memory.
   - `static/studio.js` loaded in <head> before the main script: option registry (`O`, saved in `rs_opts`), extra
     themes, explicit mode + `#/explicit` / `#/bookmarks` routes, context menu, Cmd+K palette, lightbox, PIN lock, panic
     key, mods (`rs_mods`), wizard. Hooks in index.html: `Studio.filterPost`, `Studio.cardClass`, `Studio.route`,

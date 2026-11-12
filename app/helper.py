@@ -18,6 +18,8 @@ import sys
 import threading
 import time
 
+import tidy
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 MEM_FILE = os.path.expanduser("~/.config/reddit-studio/memory.json")
 HOME = os.path.expanduser("~")
@@ -96,7 +98,7 @@ def source_dir():
     p = m.get("source_dir")
     if p and _is_source(p):
         return p
-    cands = [os.path.join(DOWNLOADS, "reddit-studio"), os.path.join(HOME, "reddit-studio-src"),
+    cands = [os.path.join(HOME, "Reddit Studio Files", "Source", "reddit-studio"), os.path.join(DOWNLOADS, "reddit-studio"), os.path.join(HOME, "reddit-studio-src"),
              os.path.join(HOME, "Developer", "reddit-studio"), os.path.join(HOME, "Documents", "reddit-studio")]
     cands += glob.glob(os.path.join(HOME, "*", "reddit-studio")) + glob.glob(os.path.join(HOME, "*", "*", "reddit-studio"))
     for c in cands:
@@ -117,12 +119,19 @@ def pending_patches():
     src = source_dir()
     cur = _ver_key(_read(os.path.join(src, "app", "VERSION"))) if src else (0, 0, 0)
     out = []
-    for p in glob.glob(os.path.join(DOWNLOADS, "reddit-studio*.patch")):
+    inbox = tidy.paths(HOME)["inbox"]
+    for p in glob.glob(os.path.join(DOWNLOADS, "reddit-studio*.patch")) + glob.glob(os.path.join(inbox, "reddit-studio*.patch")):
         name = os.path.basename(p)
         if name in done or _ver_key(name) <= cur:
             continue
         out.append(p)
-    return sorted(out, key=lambda p: _ver_key(os.path.basename(p)))
+    seen, uniq = set(), []
+    for p in sorted(out, key=lambda p: _ver_key(os.path.basename(p))):
+        v = _ver_key(os.path.basename(p))
+        if v not in seen:
+            seen.add(v)
+            uniq.append(p)
+    return uniq
 
 
 def _read(p):
@@ -199,7 +208,8 @@ def _install_signin():
         _log("Sign-in needs a newer Python than this install has. Run the Reddit Studio installer again "
              "(it sets up a newer Python automatically), then try this button again.\n")
         return False
-    return _run([sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "rdt-cli"]) == 0 and bool(_rdt())
+    direct = {k: "" for k in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy")}
+    return _run([sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "rdt-cli"], env=direct) == 0 and bool(_rdt())
 
 
 def _rdt_authenticated():
@@ -299,6 +309,9 @@ def _publish():
         return False
     remember(last_published=tag)
     _log(f"\nPublished {tag}. Installed copies will pick it up on their next update check.\n")
+    if _mem().get("tidy_auto", True):
+        _log("\nTidying Downloads…\n")
+        _tidy_now(quiet=True)
     return True
 
 
@@ -334,7 +347,56 @@ def _extension():
     return True
 
 
+def _source_version():
+    src = source_dir()
+    return _read(os.path.join(src, "app", "VERSION")) if src else None
+
+
+def _tidy_now(quiet=False):
+    with _lock:
+        if JOB["running"] and JOB["id"] == "publish" and not quiet:
+            return False
+    res = tidy.run(HOME, _source_version(), log=lambda t: _log(t + "\n"),
+                   on_source_moved=lambda p: remember(source_dir=p))
+    remember(last_tidy=res["at"], last_tidy_version=_read(os.path.join(HERE, "VERSION")),
+             last_tidy_summary={"moved": len(res["moved"]), "freed": res["freed_text"]})
+    return True
+
+
+def _open_files():
+    root = tidy.paths(HOME)["root"]
+    os.makedirs(root, exist_ok=True)
+    _log(f"Reddit Studio's files are in {root}\n")
+    if sys.platform == "darwin":
+        subprocess.Popen(["open", root], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return True
+
+
+def auto_tidy():
+    """Called when the app starts: tidy after each update, and at most once a day otherwise."""
+    m = _mem()
+    if not m.get("tidy_auto", True) or JOB["running"]:
+        return
+    ver = _read(os.path.join(HERE, "VERSION"))
+    if m.get("last_tidy_version") == ver and time.time() - m.get("last_tidy", 0) < 86400:
+        return
+    if not tidy.clutter(HOME, _source_version()) and m.get("last_tidy_version") == ver:
+        remember(last_tidy=time.time())
+        return
+    try:
+        _start("tidy", "Tidy Downloads", lambda: _tidy_now(quiet=True))
+    except RuntimeError:
+        pass
+
+
+def set_tidy_auto(on):
+    remember(tidy_auto=bool(on))
+    return {"tidy_auto": bool(on)}
+
+
 ACTIONS = {
+    "tidy": ("Tidy Downloads now", lambda: _tidy_now()),
+    "open_files": ("Open Reddit Studio Files", _open_files),
     "extension": ("Add Chrome extension", _extension),
     "install_signin": ("Set up Reddit sign-in", _install_signin),
     "signin": ("Sign in with Chrome", _signin),
@@ -393,6 +455,10 @@ def suggestions(account, err_hint=""):
         add("network", "Try a different network",
             "Reddit sometimes blocks a whole home connection. Switch to your phone's hotspot for a minute, then click Try again.",
             0.6, kind="info")
+    if not _mem().get("tidy_auto", True):
+        cl = tidy.clutter(HOME, _source_version())
+        if cl:
+            add("tidy", "Tidy your Downloads", f"{len(cl)} Reddit Studio file(s) are sitting in Downloads.", 0.3)
     pp = pending_patches()
     if pp:
         names = ", ".join(os.path.basename(p) for p in pp)
@@ -415,4 +481,6 @@ def overview(account, err_hint=""):
             "source_dir": src, "pending_patches": [os.path.basename(p) for p in pending_patches()],
             "has_signin_tool": bool(_rdt()), "has_git": bool(_git()),
             "last_published": _mem().get("last_published"),
+            "tidy": {"auto": _mem().get("tidy_auto", True), "clutter": tidy.clutter(HOME, _source_version()),
+                     "root": tidy.paths(HOME)["root"], "last": _mem().get("last_tidy_summary")},
             "actions": [{"id": k, "title": v[0]} for k, v in ACTIONS.items()]}

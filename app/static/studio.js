@@ -41,7 +41,7 @@
 
   /* ---------------- option registry ---------------- */
   // type: toggle | range | select | text | area | button
-  const CATS = ["Appearance", "Feed", "Media", "Comments", "Explicit mode", "Privacy", "Keyboard", "Developer", "Mods", "Setup"];
+  const CATS = ["Appearance", "Feed", "Media", "Comments", "Explicit mode", "Privacy", "Network", "Storage", "Keyboard", "Developer", "Mods", "Setup"];
   const O = [];
   const add = (cat, id, label, type, def, extra = {}) => O.push({ cat, id, label, type, def, ...extra });
 
@@ -461,6 +461,8 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
     const list = $("#setlist");
     if (q) { list.innerHTML = O.filter(o => (o.label + " " + o.cat).toLowerCase().includes(q)).map(rowHTML).join("") || '<p class="muted">No settings match.</p>'; return; }
     if (setCat === "Setup") list.innerHTML = setupHTML();
+    else if (setCat === "Network") drawNetwork(list);
+    else if (setCat === "Storage") drawStorage(list);
     else if (setCat === "Mods") list.innerHTML = modsHTML();
     else list.innerHTML = O.filter(o => o.cat === setCat).map(rowHTML).join("");
   }
@@ -499,6 +501,58 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
     });
   }
   function runOne(m) { try { new Function("Studio", m.code)(window.Studio); } catch (e) { say(`Mod failed: ${e.message}`); } }
+  /* ---------------- Network (proxy) ---------------- */
+  const api = async (url, body) => {
+    const r = await fetch(url, body === undefined ? {} : { method: "POST", headers: { "X-Reddit-Studio": "1", "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const j = await r.json(); if (!j.ok) throw new Error(j.error || "Something went wrong"); return j.result;
+  };
+  async function drawNetwork(list) {
+    list.innerHTML = '<p class="muted">Loading…</p>';
+    let n; try { n = await api("/api/network"); } catch (e) { list.innerHTML = `<p class="error">${escH(e.message)}</p>`; return; }
+    const lt = n.last_test;
+    list.innerHTML = `<p class="muted" style="font-size:13px">Send Reddit Studio's internet traffic (Reddit, RedGIFs, the archive and updates) through a proxy. Your own Mac's traffic isn't affected.
+        If you use a VPN app (for example Proton VPN), you don't need this: the VPN already covers the whole Mac.</p>
+      <label class="setrow"><span class="lbl">Use a proxy<small>${n.active ? "On: " + escH(n.url) : "Off: connecting directly"}</small></span><input type="checkbox" class="sw" id="net-on" ${n.on ? "checked" : ""}></label>
+      <div class="setrow"><span class="lbl">Proxy address<small>http://host:port or socks5://host:port (user:password@ allowed)</small></span><input type="text" id="net-url" value="${escH(n.url)}" placeholder="socks5://127.0.0.1:9050" spellcheck="false"></div>
+      <div class="presets">${n.presets.map(p => `<button data-netpreset="${escH(p.url)}" title="${escH(p.label)}">${escH(p.label.split(" (")[0])}: ${escH(p.url)}</button>`).join("")}</div>
+      <div class="presets"><button class="primary" id="net-save">Save</button><button id="net-test">Test connection</button><button id="net-direct">Test without proxy</button></div>
+      <div id="net-out" class="${lt ? (lt.ok ? "" : "error") : "muted"}" style="font-size:13px">${lt ? escH(`${lt.message} (${lt.via}, ${lt.ms} ms)`) : "Not tested yet."}</div>
+      ${n.socks_ready ? "" : '<p class="muted" style="font-size:12px">SOCKS support installs with this update; HTTP proxies work right away.</p>'}
+      <h3 style="margin:16px 0 6px">Free, open-source option: Tor</h3>
+      <p class="muted" style="font-size:13px">Tor is free and open source. Easiest: open <b>Tor Browser</b> and pick the "Tor Browser" preset (port 9150) while it's running. Reddit sometimes blocks Tor exit addresses; the test tells you.</p>`;
+    const out = (m, ok) => { const o = $("#net-out"); o.className = ok ? "" : "error"; o.style.fontSize = "13px"; o.textContent = m; };
+    list.querySelectorAll("[data-netpreset]").forEach(b => b.onclick = () => { $("#net-url").value = b.dataset.netpreset; });
+    $("#net-save").onclick = async () => {
+      try { await api("/api/network", { on: $("#net-on").checked, url: $("#net-url").value }); say("Network settings saved"); drawNetwork(list); }
+      catch (e) { out(e.message, false); }
+    };
+    $("#net-on").onchange = () => $("#net-save").click();
+    $("#net-test").onclick = async () => {
+      out("Testing…", true);
+      try { const r = await api("/api/network/test", { url: $("#net-url").value || null }); out(`${r.message} (${r.via}, ${r.ms} ms)`, r.ok); }
+      catch (e) { out(e.message, false); }
+    };
+    $("#net-direct").onclick = async () => {
+      out("Testing…", true);
+      try { const r = await api("/api/network/test", {}); out(`${r.message} (${r.via}, ${r.ms} ms)`, r.ok); } catch (e) { out(e.message, false); }
+    };
+  }
+
+  /* ---------------- Storage (Downloads tidy) ---------------- */
+  async function drawStorage(list) {
+    list.innerHTML = '<p class="muted">Loading…</p>';
+    let h; try { h = await api("/api/helper"); } catch (e) { list.innerHTML = `<p class="error">${escH(e.message)}</p>`; return; }
+    if (h.local === false) { list.innerHTML = '<p class="muted">Storage settings are only available on the computer.</p>'; return; }
+    const t = h.tidy || {};
+    list.innerHTML = `<p class="muted" style="font-size:13px">Reddit Studio keeps its own files (update files, installers, snapshots, settings exports, your source folder) in <b>${escH(t.root || "~/Reddit Studio Files")}</b> instead of Downloads, and prunes old copies. Nothing else in Downloads is ever touched.</p>
+      <label class="setrow"><span class="lbl">Tidy Downloads automatically<small>After every update, after publishing, and once a day</small></span><input type="checkbox" class="sw" id="tidy-auto" ${t.auto ? "checked" : ""}></label>
+      <div class="setrow"><span class="lbl">In Downloads right now<small>${t.clutter && t.clutter.length ? t.clutter.map(c => escH(c.name)).join(", ") : "Nothing to tidy"}</small></span><button id="tidy-now">Tidy now</button></div>
+      <div class="setrow"><span class="lbl">Last tidy<small>${t.last ? `moved ${t.last.moved}, freed ${escH(t.last.freed)}` : "Not yet"}</small></span><button id="tidy-open">Open folder</button></div>`;
+    $("#tidy-auto").onchange = async e => { try { await api("/api/helper/tidy_auto", { on: e.target.checked }); say(e.target.checked ? "Auto-tidy on" : "Auto-tidy off"); } catch (err) { say(err.message); } };
+    $("#tidy-now").onclick = () => { closeSettings(); window.helperRun && helperRun("tidy"); };
+    $("#tidy-open").onclick = () => { window.helperRun && helperRun("open_files"); };
+  }
+
   function exportSettings() {
     const data = { app: "Reddit Studio", exported: new Date().toISOString(), opts: V, mods: mods(), favs: LS.get("rs_favs", []), theme: LS.get("rs_theme"), accent: LS.get("rs_accent"), bookmarks: bookmarks() };
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
