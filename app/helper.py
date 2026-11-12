@@ -202,15 +202,39 @@ def _install_signin():
     return _run([sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "rdt-cli"]) == 0 and bool(_rdt())
 
 
+def _rdt_authenticated():
+    """True/False from `rdt status`, or None if it couldn't tell."""
+    try:
+        out = subprocess.run([_rdt(), "status"], capture_output=True, text=True, timeout=60).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return None, ""
+    _log(out if out.endswith("\n") else out + "\n")
+    m = re.search(r"authenticated:\s*(true|false)", out, re.I)
+    err = re.search(r"error:\s*'?([^'\n]+)", out)
+    return (m.group(1).lower() == "true") if m else None, (err.group(1) if err else "")
+
+
 def _signin():
     if not _rdt() and not _install_signin():
         return False
     _log("\nCopying your Reddit sign-in from Chrome. If macOS asks for your password to let it read "
          "Chrome's saved data, choose Allow.\n\n")
-    ok = _run([_rdt(), "login"], timeout=300) == 0
-    if ok:
-        _run([_rdt(), "status"], timeout=60)
-    return ok
+    _run([_rdt(), "login"], timeout=300)
+    ok, err = _rdt_authenticated()
+    if ok is not True:
+        _log("\nThe saved sign-in isn't accepted by Reddit" + (f" ({err})" if err else "") +
+             ". Clearing it and copying a fresh one…\n\n")
+        _run([_rdt(), "logout"], timeout=60)
+        _run([_rdt(), "login"], timeout=300)
+        ok, err = _rdt_authenticated()
+    if ok is True:
+        _log("\nSigned in. Reddit Studio now reads with your account.\n")
+        return True
+    _log("\nReddit still refuses this sign-in" + (f" ({err})" if err else "") + ".\n"
+         "Try this: in Chrome, open reddit.com, log out, log back in, then click Sign in with Chrome again.\n"
+         "Or use the Chrome extension (Helper › Add Chrome extension) — it reads through your open Chrome tab "
+         "and doesn't need this sign-in at all.\n")
+    return False
 
 
 def _signout():

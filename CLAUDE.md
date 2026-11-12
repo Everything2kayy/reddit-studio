@@ -22,6 +22,10 @@ self-updater from GitHub tags, Control Center (`rsctl`), double-click installer.
   - `menubar.py` runs the server in-process, polls `updater.STATE["restart_pending"]` and re-execs itself; background
     auto-update thread; Control Center submenu calls `rsctl`.
   - `rsctl` bash Control Center: `rsctl` (clickable list, 23 options) or `rsctl <action>`.
+  - `static/studio.js` loaded in <head> before the main script: option registry (`O`, saved in `rs_opts`), extra
+    themes, explicit mode + `#/explicit` / `#/bookmarks` routes, context menu, Cmd+K palette, lightbox, PIN lock, panic
+    key, mods (`rs_mods`), wizard. Hooks in index.html: `Studio.filterPost`, `Studio.cardClass`, `Studio.route`,
+    `Studio.opt`, events `rs:feed` / `rs:post`. The main page's const/let globals are read via `G.*` (not window props).
   - `templates/index.html` the whole UI (Reader, Tools, Communities, account, phone QR, About/updates).
   - `VERSION` single source of truth. `update.json` names the update repo (`Everything2kayy/reddit-studio`).
 - `app/extension/` Chrome MV3 extension (load unpacked from `~/reddit-studio/extension`). `content.js` = shadow-DOM panel

@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=block">
 <script src="/static/vendor/purify.min.js"></script>
+<script src="/static/studio.js"></script>
 <script src="/static/vendor/hls.light.min.js" defer></script>
 <style>
 [data-theme=midnight]{--bg:#0f1115;--panel:#171a21;--panel2:#1d2129;--text:#e7eaf0;--muted:#8b93a7;--border:#262b36;--accent:#7aa2ff}
@@ -177,7 +178,8 @@ pre.out{white-space:pre-wrap;word-break:break-word;background:var(--bg);padding:
 .dirset{border-top:1px solid var(--border);margin-top:16px;padding-top:12px;display:grid;gap:6px;font-size:13px}
 .dirset label{display:flex;gap:8px;align-items:center}
 @media (max-width:860px){html.icons-ok .dirlabel{display:none}}
-.modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;width:min(420px,100%);box-shadow:0 20px 60px rgba(0,0,0,.5)}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px;width:min(420px,100%);box-shadow:0 20px 60px rgba(0,0,0,.5);max-height:calc(100vh - 32px);overflow:auto;overscroll-behavior:contain}
+.modalbg{overflow:auto}
 .qr{background:#fff;border-radius:12px;padding:14px;margin:14px auto;width:240px;height:240px}
 .qr svg{width:100%;height:100%;display:block}
 .steps{margin:8px 0;padding-left:20px;color:var(--muted);font-size:13px}
@@ -219,6 +221,7 @@ pre.out{white-space:pre-wrap;word-break:break-word;background:var(--bg);padding:
   <button id="ver" class="ghost ver" title="About Reddit Studio">v…</button>
   <button id="helpbtn" class="ghost helpbtn" title="Helper: one-click fixes and actions"><span class="ms">auto_fix_high</span><span id="helpbadge" class="hbadge" hidden></span></button>
   <button id="acct" class="ghost acct" title="Reddit account"><span class="dot"></span><span id="acctlabel">Public mode</span></button>
+  <button id="setbtn" class="ghost" title="Settings, mods & themes (Cmd+,)"><span class="ms" data-fb="Settings">tune</span></button>
   <select id="theme" aria-label="Theme">
     <option value="midnight">Midnight</option><option value="daylight">Daylight</option>
     <option value="sepia">Sepia</option><option value="nord">Nord</option>
@@ -392,6 +395,7 @@ async function route() {
   let m;
   if (h.startsWith("tools")) { showView("tools"); await toolsReady; const id = h.split("/")[1]; if (id && (!current || current.id !== id)) select(id); return; }
   showView("reader");
+  if (Studio.route(h)) return;
   if ((m = h.match(/^comments\/([a-z0-9]+)/i))) { if (!feed.loaded) loadFeed("r/popular"); openPost(m[1]); return; }
   if ((m = h.match(/^(home|saved)$/))) { if (m[1] !== feed.target || !feed.loaded) loadFeed(m[1]); else closeDetailOnMobile(); return; }
   if ((m = h.match(/^(r|u)\/([A-Za-z0-9_+\-]+)/))) { const t = m[1] + "/" + m[2]; if (t !== feed.target || !feed.loaded) loadFeed(t); else closeDetailOnMobile(); return; }
@@ -668,6 +672,7 @@ rtime.onchange = () => { ls.set("rs_time", rtime.value); loadFeed(feed.target); 
 $("#addrform").onsubmit = async e => {
   e.preventDefault();
   const v = $("#addr").value.trim(); if (!v) return;
+  if (/^(explicit|bookmarks)$/i.test(v)) { location.hash = "#/" + v.toLowerCase(); return; }
   const post = v.match(/comments\/([a-z0-9]+)|redd\.it\/([a-z0-9]+)/i);
   if (post) { location.hash = "#/comments/" + (post[1] || post[2]); return; }
   const u = v.match(/(?:^|\/)(?:u|user)\/([A-Za-z0-9_\-]+)/), r = v.match(/(?:^|\/)r\/([A-Za-z0-9_+\-]+)/);
@@ -688,7 +693,7 @@ function renderChips() {
     .map(t => `<button class="chip ${t === feed.target ? "on" : ""}" data-t="${esc(t)}">${esc(label(t))}</button>`).join("");
 }
 $("#chips").onclick = e => { const b = e.target.closest("[data-t]"); if (b) location.hash = "#/" + b.dataset.t; };
-function remember(t) { const r = ls.get("rs_recent", []).filter(x => x !== t); r.unshift(t); ls.set("rs_recent", r.slice(0, 8)); }
+function remember(t) { if (Studio.opt("noRecent")) return; const r = ls.get("rs_recent", []).filter(x => x !== t); r.unshift(t); ls.set("rs_recent", r.slice(0, 8)); }
 
 async function loadFeed(target, more) {
   const req = ++feed.req;
@@ -718,14 +723,14 @@ async function loadFeed(target, more) {
 }
 
 const typeIcon = { video: "play_circle", gallery: "photo_library", image: "image", text: "notes", link: "link" };
-function matches(p) { if (!settings.adult && isAdult(p)) return false; const f = feed.filter, t = p.media.type;
+function matches(p) { if (!settings.adult && isAdult(p)) return false; if (!Studio.filterPost(p)) return false; const f = feed.filter, t = p.media.type;
   return f === "all" || (f === "image" && (t === "image" || t === "gallery")) || f === t; }
 function renderFeed() {
   const vis = feed.posts.filter(matches);
   $("#feed").innerHTML = vis.map(p => {
     const hide = (isAdult(p) && settings.blur) || p.spoiler;
     const th = p.thumb ? `style="background-image:url('${esc(p.thumb)}')"` : "";
-    return `<article class="card ${p.id === openId ? "sel" : ""}" data-id="${esc(p.id)}" tabindex="0">
+    return `<article class="card ${p.id === openId ? "sel" : ""} ${Studio.cardClass(p)}" data-id="${esc(p.id)}" data-sub="${esc(p.subreddit)}" data-author="${esc(p.author)}" tabindex="0">
       <div class="th ${hide && p.thumb ? "blurred" : ""}" ${th}>${p.thumb ? "" : icon(typeIcon[p.media.type] || "article")}
         ${p.thumb && p.media.type !== "image" ? `<span class="badge">${icon(typeIcon[p.media.type])}</span>` : ""}</div>
       <div class="cb">
@@ -733,7 +738,7 @@ function renderFeed() {
           ${p.stickied ? '<span class="tag pin">PINNED</span>' : ""}${isAdult(p) ? '<span class="tag nsfw">NSFW</span>' : ""}${p.spoiler ? '<span class="tag spoiler">SPOILER</span>' : ""}</div>
         <h3>${esc(p.title)}</h3>
         <div class="meta">${p.score == null ? "" : `<span><span class="ms" data-fb="▲">arrow_upward</span>${num(p.score)}</span><span><span class="ms" data-fb="💬">chat_bubble</span>${num(p.comments)}</span>`}
-          ${p.flair ? `<span class="flair">${esc(p.flair)}</span>` : ""}<span>${esc(p.domain)}</span></div>
+          ${p.flair ? `<span class="flair">${esc(p.flair)}</span>` : ""}<span class="dom">${esc(p.domain)}</span></div>
       </div></article>`;
   }).join("") || (feed.posts.length ? `<div class="empty">${!settings.adult && feed.posts.every(isAdult)
       ? "This community is 18+. Turn on 18+ content under Communities to see it." : "No posts of that type here. Try another filter, or load more."}</div>` : "");
@@ -741,10 +746,11 @@ function renderFeed() {
     ? `<button class="loadmore" id="more" style="width:calc(100% - 16px)"><span class="ms">expand_more</span>Load more</button>`
     : feed.posts.length ? '<div class="empty">End of the list.</div>' : '<div class="empty">Nothing here.</div>';
   if ($("#more")) $("#more").onclick = () => loadFeed(feed.target, true);
+  document.dispatchEvent(new CustomEvent("rs:feed"));
 }
 $("#feed").onclick = e => { const c = e.target.closest(".card"); if (c) location.hash = "#/comments/" + c.dataset.id; };
 $("#feedwrap").addEventListener("scroll", () => {
-  const w = $("#feedwrap"); if (feed.after && !feed.busy && w.scrollTop + w.clientHeight > w.scrollHeight - 400) loadFeed(feed.target, true);
+  const w = $("#feedwrap"); if (Studio.opt("infiniteScroll") && feed.after && !feed.busy && w.scrollTop + w.clientHeight > w.scrollHeight - 400) loadFeed(feed.target, true);
 });
 $("#filter").onclick = e => { const b = e.target.closest("[data-f]"); if (!b) return;
   feed.filter = b.dataset.f; $$("#filter button").forEach(x => x.classList.toggle("on", x === b)); renderFeed(); };
@@ -826,7 +832,7 @@ const POST_TOOLS = [["post","forum","Top comments (table)"],["thread_md","descri
 function cmtHTML(list, depth) {
   return list.map(c => {
     if (c.more) return `<div class="more muted">${c.more} more repl${c.more === 1 ? "y" : "ies"} on Reddit</div>`;
-    return `<div class="cmt" style="border-left-color:hsl(${(depth * 47) % 360} 45% 45% / .55)">
+    return `<div class="cmt d${depth}" data-author="${esc(c.author)}" style="border-left-color:hsl(${(depth * 47) % 360} 45% 45% / .55)">
       <div class="ch"><button class="tog" title="Collapse">[–]</button><b>u/${esc(c.author)}</b>${c.is_op ? '<span class="op">OP</span>' : ""}
         ${c.flair ? `<span class="flair">${esc(c.flair)}</span>` : ""}${c.score == null ? "" : `<span><span class="ms" data-fb="▲">arrow_upward</span>${num(c.score)}</span>`}<span>${ago(c.created_utc)}</span>
         ${c.stickied ? '<span class="tag pin">PINNED</span>' : ""}</div>
@@ -885,6 +891,7 @@ async function openPost(id, csort) {
     $("#collapseall").onclick = () => d.querySelectorAll("#comments > .cmt").forEach(c => c.classList.add("collapsed"));
     $("#comments").onclick = e => { const t = e.target.closest(".tog"); if (!t) return;
       const c = t.closest(".cmt"); c.classList.toggle("collapsed"); t.textContent = c.classList.contains("collapsed") ? "[+]" : "[–]"; };
+    document.dispatchEvent(new CustomEvent("rs:post", { detail: { p, el: d } }));
   } catch (err) {
     if (req !== threadReq) return;
     d.innerHTML = `<div class="dempty"><div class="error">${esc(err.message)}<br><br><button id="retryp">${icon("refresh")}Try again</button></div></div>`;
@@ -898,7 +905,7 @@ document.addEventListener("keydown", e => {
   if (!$("#reader").classList.contains("on") || e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.target.closest("input,textarea,select,[contenteditable]")) { if (e.key === "Escape") e.target.blur(); return; }
   const cards = $$("#feed .card");
-  if (e.key === "j" || e.key === "k") {
+  if ((e.key === "j" || e.key === "k") && Studio.opt("vimKeys")) {
     if (!cards.length) return;
     selIdx = Math.max(0, Math.min(cards.length - 1, selIdx + (e.key === "j" ? 1 : -1)));
     cards.forEach((c, i) => c.classList.toggle("sel", i === selIdx));

@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.8.0] - 2026-11-12
+### Fixed
+- Windows (Helper, account, settings and others) now fit the screen and scroll, so they never block the app.
+- Sign in with Chrome now checks that Reddit actually accepts the sign-in. If the saved one is stale it clears it and copies a fresh one, and it only reports success when it works.
+### Added
+- Settings (sliders button, or Cmd+,): 87 searchable settings in 10 sections — Appearance, Feed, Media, Comments, Explicit mode, Privacy, Keyboard, Developer, Mods and Setup.
+- 14 new themes (22 in total) with a visual theme picker, plus 5 one-click presets (Reader, Power user, Explicit night, Accessible, Minimal).
+- Explicit mode: an 18+ switch with its own #/explicit feed built from your chosen communities, kept out of regular feeds, grid view, media-only filter, its own theme, muted autoplay, reveal-on-hover, and a panic key (`) that hides everything and jumps to a safe page.
+- Bookmarks (#/bookmarks), read tracking (dim or hide read posts), muted words, communities and users, highlight words, minimum score and duplicate hiding.
+- Right-click menu on posts (13 actions), command palette (Cmd+K), keyboard shortcuts (n/p, o, b, m, g-jumps, ?), fullscreen media viewer with arrow keys, picture-in-picture, playback speed, RedGIFs quality.
+- Mods: add your own CSS or JavaScript snippets, with 6 starter mods. Developer tools: View JSON, copy ID and API path, data-source badge, request logging, render timings, live custom CSS, outline mode, settings export/import/reset.
+- Privacy: PIN lock, blur when you switch away, ask before outside links, clear history.
+- Setup wizard on first launch (theme, start page, explicit mode, Chrome extension).
+
 ## [2.7.0] - 2026-11-12
 ### Added
 - Chrome extension (Helper › Add Chrome extension): a Studio panel right on reddit.com with a clean Reader (threaded comments), Tools (page stats, media links, Markdown/JSON/CSV export, keyword highlight), Tweaks (14 page tweaks plus your own live CSS), and Dev tools (page JSON inspector with filter, element picker that copies a CSS selector, layout overlays, activity log). Open it with the orange RS button or Alt+S.

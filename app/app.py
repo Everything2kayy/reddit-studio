@@ -217,7 +217,8 @@ def redgifs_video(rid):
         r = rt.redgifs_urls(rid)
     except (ValueError, RuntimeError) as e:
         return str(e), 404
-    return redirect(r["hd"] or r["sd"], code=302)
+    want_sd = request.args.get("q") == "sd"
+    return redirect((r["sd"] if want_sd else r["hd"]) or r["sd"], code=302)
 
 
 # ---------- Chrome extension bridge ----------
