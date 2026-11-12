@@ -3,6 +3,7 @@ import os
 import secrets
 import socket
 import threading
+import time
 
 from flask import Flask, jsonify, redirect, render_template, request, send_from_directory
 
@@ -15,6 +16,8 @@ import updater
 from reddit_tools import REGISTRY
 
 app = Flask(__name__)
+app.config["TEMPLATES_AUTO_RELOAD"] = True     # after an update the page always matches the files on disk
+app.jinja_env.auto_reload = True
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 PHONE_PORT = 5056
 LOCAL = {"127.0.0.1", "::1", "::ffff:127.0.0.1"}
@@ -159,7 +162,7 @@ def restart():
     def go():
         _from_app()
         updater.STATE["restart_pending"] = True
-        return {"restarting": bool(app.config.get("CAN_RESTART"))}
+        return {"restarting": True}
     return _wrap(go)
 
 
@@ -260,11 +263,43 @@ def helper_tidy_auto():
     return _wrap(go)
 
 
+_bg = {"started": False}
+
+
+def _restart_self():
+    """Start a fresh copy of this server (after this one has let go of its port), then exit.
+    Used when Reddit Studio isn't running under the menu bar app, which restarts itself."""
+    import subprocess
+    import sys
+    argv = sys.argv[:]
+    if argv and ("flask" in os.path.basename(argv[0]) or argv[0].endswith(os.path.join("flask", "__main__.py"))):
+        args = ["-m", "flask"] + argv[1:]
+    else:
+        args = argv
+    here = os.path.dirname(os.path.abspath(__file__))
+    log = open(os.path.join(here, "server.log"), "a")
+    subprocess.Popen(["/bin/sh", "-c", 'sleep 2; exec "$0" "$@"', sys.executable, *args],
+                     cwd=here, stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
+    os._exit(0)
+
+
+def _restart_watch():
+    while True:
+        time.sleep(1)
+        if updater.STATE.get("restart_pending") and not app.config.get("CAN_RESTART"):
+            time.sleep(1.5)                      # let the "Updated, restarting…" answer reach the page
+            _restart_self()
+
+
 def start_background():
     """Things to do shortly after the app starts (and so after every update, which restarts it)."""
+    if _bg["started"]:
+        return
+    _bg["started"] = True
     t = threading.Timer(12, helper.auto_tidy)
     t.daemon = True
     t.start()
+    threading.Thread(target=_restart_watch, daemon=True).start()
 
 
 # ---------- bulk media downloader ----------
@@ -389,3 +424,7 @@ def phone_off():
 if __name__ == "__main__":
     start_background()
     app.run(host="127.0.0.1", port=5055, debug=False)
+
+
+if os.environ.get("FLASK_RUN_FROM_CLI") == "true" or "flask" in os.path.basename(__import__("sys").argv[0] or ""):
+    start_background()

@@ -1,5 +1,11 @@
 # Changelog
 
+## [3.0.1] - 2026-11-12
+### Fixed
+- After an update the app always restarts itself, even when it isn't running from the menu bar, and the page always matches the installed version. An open window shows "Reddit Studio was updated — Reload".
+- A 403 from your Chrome tab no longer stops Reddit Studio from trying its other ways in, and when everything is blocked the message lists exactly what was tried.
+- Publishing several update files at once now tags every version, not just the last one.
+
 ## [3.0.0] - 2026-11-12
 ### Added
 - Feed Display Engine: one feed, ten views, picked from the View menu above any feed (or press v to cycle):

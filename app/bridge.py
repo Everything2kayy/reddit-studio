@@ -19,7 +19,7 @@ _cond = threading.Condition(_lock)
 HOLD = 8              # the extension's check-in waits up to this long for work (long poll)
 _ids = itertools.count(1)
 _jobs = {}             # id -> {"path", "event", "result", "error", "taken"}
-STATE = {"seen": 0.0, "version": "", "tab": "", "user": "", "served": 0, "failed": 0}
+STATE = {"seen": 0.0, "version": "", "tab": "", "user": "", "served": 0, "failed": 0, "last_error": ""}
 SAFE_PATH = re.compile(r"^/[A-Za-z0-9_/\-.]*$")
 
 
@@ -75,6 +75,7 @@ def fetch(url_path):
     try:
         if not ev.wait(WAIT):
             STATE["failed"] += 1
+            STATE["last_error"] = "the reddit.com tab didn't answer"
             return None
         j = _jobs[jid]
         if j["error"] or j["result"] is None:
@@ -82,8 +83,7 @@ def fetch(url_path):
             code = j.get("status")
             if code == 404:
                 raise RuntimeError("Reddit says that doesn't exist (404). Check the spelling.")
-            if code == 403:
-                raise RuntimeError("Reddit returned 403: it's private, banned, or your account can't see it.")
+            STATE["last_error"] = f"HTTP {code}" if code else (j["error"] or "no answer")
             return None
         STATE["served"] += 1
         return j["result"]

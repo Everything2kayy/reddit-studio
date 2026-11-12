@@ -274,10 +274,22 @@ def _fetch_signed(client, path, params):
 
 def fetch(path, **params):
     params = {k: v for k, v in params.items() if v not in (None, "")}
+    tried = []
+    try:
+        return _fetch_chain(path, params, tried)
+    except RuntimeError as e:
+        msg = str(e)
+        if tried and "Tried:" not in msg and "doesn't exist" not in msg and "rate-limiting" not in msg:
+            msg += " Tried: " + "; ".join(tried) + "."
+        raise RuntimeError(msg) from None
+
+
+def _fetch_chain(path, params, tried):
     if path != "/" and not re.fullmatch(r"/user/[^/]+/(saved|upvoted)", path) and _api_cfg() and not API["off"]:
         data = _fetch_api(path, params)
         if data is not None:
             return data
+        tried.append("API key: " + (API["error"] or "no answer"))
     client = _signed_client()
     if client is not None:
         try:
@@ -297,6 +309,7 @@ def fetch(path, **params):
                 SIGNED["error"] = "Your Reddit sign-in expired. Click Refresh sign-in in the account panel."
             else:
                 SIGNED["error"] = f"Signed-in request failed ({kind}); using public data instead."
+            tried.append("sign-in: " + ("403 refused" if kind == "ForbiddenError" else kind))
             # fall through to public data / RSS
     import bridge
     if bridge.alive():                  # Chrome extension: reads through your signed-in browser
@@ -305,6 +318,7 @@ def fetch(path, **params):
         if data is not None:
             MODE.update(rss=False)
             return data
+        tried.append("Chrome tab: " + (bridge.STATE.get("last_error") or "no answer"))
     if path in ("/",) or re.fullmatch(r"/user/[^/]+/(saved|upvoted)", path):
         raise RuntimeError(SIGNED["error"] or "Sign in first: this needs your Reddit account (see the account button, top right).")
     if MODE["rss"] and time.time() - MODE["since"] > JSON_RETRY:
@@ -334,15 +348,20 @@ def fetch(path, **params):
         if reason:      # a real per-community answer, e.g. private or banned
             raise RuntimeError(f"Reddit says that community is {reason}.")
         MODE.update(rss=True, since=time.time())     # blanket block: switch to RSS
+        tried.append("public data: 403 blocked")
+    if not any(t.startswith("public data") for t in tried):
+        tried.append("public data: blocked (rechecked every 30 minutes)")
     try:
         return _fetch_rss(path, params)
     except RuntimeError as rss_err:
+        tried.append("RSS: " + ("blocked" if "blocking" in str(rss_err) else str(rss_err)[:60]))
         try:
             data = _fetch_archive(path, params)
         except Exception:
             data = None
         if data is None:
-            raise rss_err
+            tried.append("archive: " + ("not available for this page" if not re.match(r"^/(r|user|comments)/", path) or path.startswith(("/r/popular", "/r/all")) else "no answer"))
+            raise RuntimeError("Reddit is blocking every way Reddit Studio reads it from this Mac right now.")
         return data
 
 

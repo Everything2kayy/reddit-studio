@@ -968,6 +968,22 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
         + `<button class="chip" data-studio data-t="history">🕘 History</button>`;
       chips.insertAdjacentHTML("afterbegin", extra);
     }).observe(chips, { childList: true });
+    // if the app was updated while this window stayed open, offer a reload so the page matches
+    let pageVer = null;
+    const checkVer = async () => {
+      try {
+        const r = await (await fetch("/api/version", { cache: "no-store" })).json(); const v = r.result && r.result.version; if (!v) return;
+        if (pageVer == null) pageVer = v;
+        else if (v !== pageVer && !$("#verbanner")) {
+          const b = document.createElement("div"); b.id = "verbanner";
+          b.style.cssText = "position:fixed;left:50%;top:10px;transform:translateX(-50%);z-index:150;background:var(--accent);color:var(--bg);padding:8px 10px 8px 14px;border-radius:12px;display:flex;gap:10px;align-items:center;font-weight:600;box-shadow:0 10px 30px rgba(0,0,0,.4)";
+          b.innerHTML = `Reddit Studio was updated to ${escH(v)}. <button style="background:var(--bg);color:var(--text)">Reload</button>`;
+          b.querySelector("button").onclick = () => location.reload();
+          document.body.appendChild(b);
+        }
+      } catch {}
+    };
+    checkVer(); setInterval(checkVer, 30000);
     if (opt("pin")) lock();
     runJsMods();
     if (!LS.get("rs_wizard_done")) setTimeout(wizard, 600);

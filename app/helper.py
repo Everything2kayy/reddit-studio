@@ -276,6 +276,7 @@ def _publish():
     if not subprocess.run([git, "config", "user.name"], cwd=src, capture_output=True, text=True).stdout.strip():
         ident = {"GIT_COMMITTER_NAME": "Reddit Studio", "GIT_COMMITTER_EMAIL": "reddit-studio@localhost"}
     patches = pending_patches()
+    pushed_tags = []
     if patches:
         _run([git, "am", "--abort"], cwd=src, timeout=30) if os.path.isdir(os.path.join(src, ".git", "rebase-apply")) else None
     for p in patches:
@@ -290,6 +291,10 @@ def _publish():
                 return False
         m = _mem()
         remember(applied_patches=sorted(set(m.get("applied_patches", [])) | {name}))
+        v = _read(os.path.join(src, "app", "VERSION"))          # tag every version on the way, not just the last
+        if re.fullmatch(r"\d+\.\d+\.\d+", v) and not subprocess.run([git, "tag", "-l", "v" + v], cwd=src, capture_output=True, text=True).stdout.strip():
+            _run([git, "tag", "v" + v], cwd=src, timeout=30, env=ident)
+            pushed_tags.append("v" + v)
     ver = _read(os.path.join(src, "app", "VERSION"))
     if not re.fullmatch(r"\d+\.\d+\.\d+", ver):
         _log(f"app/VERSION doesn't look like a version ({ver!r}).\n")
@@ -305,7 +310,7 @@ def _publish():
         _log("\nGitHub didn't accept the upload. If it's a sign-in problem, push once from Terminal so "
              "your Mac saves your GitHub token, then this button will work from then on.\n")
         return False
-    if _run([git, "push", "origin", tag], cwd=src, timeout=300) != 0:
+    if _run([git, "push", "origin", *sorted(set(pushed_tags + [tag]))], cwd=src, timeout=300) != 0:
         return False
     remember(last_published=tag)
     _log(f"\nPublished {tag}. Installed copies will pick it up on their next update check.\n")
