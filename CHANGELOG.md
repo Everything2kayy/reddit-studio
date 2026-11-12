@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.0] - 2026-11-12
+### Added
+- Studio Player: every video gets full open-source controls (Plyr, MIT): skip back/forward, speed (0.25×–3×), loop, frame-by-frame (, and .), volume and speed remembered, picture-in-picture, AirPlay, full screen, an HD/SD switch on RedGIFs videos and a download button. Works in posts and in Gallery, Reels and Theater.
+- Zoom viewer for images and galleries (PhotoSwipe, MIT): scroll or pinch to zoom, drag to pan, swipe between gallery images, rotate (r), open full size.
+- RedGIFs tab (with Explicit mode on): opening a Reddit post that links to RedGIFs switches to it — the video in the Studio Player with the creator, tags, views, likes and length, plus More from this creator, Similar (by tag) and Trending this week. n / p move through the list; Back to the Reddit post returns you there.
+- Settings › Player for all of the above.
+
 ## [3.0.1] - 2026-11-12
 ### Fixed
 - After an update the app always restarts itself, even when it isn't running from the menu bar, and the page always matches the installed version. An open window shows "Reddit Studio was updated — Reload".

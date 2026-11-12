@@ -338,6 +338,26 @@ def media_open():
     return _wrap(go)
 
 
+@app.get("/api/redgifs/info/<rid>")
+def redgifs_info(rid):
+    return _wrap(lambda: rt.redgifs_info(rid))
+
+
+@app.get("/api/redgifs/user/<name>")
+def redgifs_user(name):
+    return _wrap(lambda: rt.redgifs_creator(name, request.args.get("page", 1)))
+
+
+@app.get("/api/redgifs/tag/<tag>")
+def redgifs_tag(tag):
+    return _wrap(lambda: rt.redgifs_tag(tag, request.args.get("page", 1)))
+
+
+@app.get("/api/redgifs/trending")
+def redgifs_trending():
+    return _wrap(lambda: rt.redgifs_trending(request.args.get("page", 1)))
+
+
 # ---------- Chrome extension bridge ----------
 @app.post("/api/bridge/checkin")
 def bridge_checkin():

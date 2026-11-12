@@ -41,7 +41,7 @@
 
   /* ---------------- option registry ---------------- */
   // type: toggle | range | select | text | area | button
-  const CATS = ["Appearance", "Views", "Feed", "Media", "Comments", "Explicit mode", "Privacy", "Network", "Storage", "Keyboard", "Developer", "Mods", "Setup"];
+  const CATS = ["Appearance", "Views", "Player", "Feed", "Media", "Comments", "Explicit mode", "Privacy", "Network", "Storage", "Keyboard", "Developer", "Mods", "Setup"];
   const O = [];
   const add = (cat, id, label, type, def, extra = {}) => O.push({ cat, id, label, type, def, ...extra });
 
@@ -99,6 +99,14 @@
   add("Feed", "startPage", "Start page (r/name, u/name, bookmarks, explicit)", "text", "r/popular");
   add("Feed", "rememberLast", "Reopen the last community on start", "toggle", false);
 
+  // Player (static/player.js: Plyr for video, PhotoSwipe for images)
+  add("Player", "studioPlayer", "Studio Player controls on videos (speed, loop, skip, frame step)", "toggle", true);
+  add("Player", "seekStep", "Skip buttons and arrow keys jump", "select", "10", { options: [["5", "5 seconds"], ["10", "10 seconds"], ["15", "15 seconds"], ["30", "30 seconds"]] });
+  add("Player", "rememberVolume", "Remember volume and speed between videos", "toggle", true);
+  add("Player", "playerImmersive", "Use the Studio Player in Gallery, Reels and Theater", "toggle", true);
+  add("Player", "zoomViewer", "Zoom viewer for images (pinch, scroll, drag, rotate)", "toggle", true);
+  add("Player", "playerKeys", "Player shortcuts", "button", null, { run: () => playerKeys() });
+
   // Media
   add("Media", "autoplay", "Autoplay videos when a post opens", "toggle", false);
   add("Media", "startMuted", "Start videos muted", "toggle", true);
@@ -129,6 +137,7 @@
   add("Explicit mode", "explicitMediaOnly", "Explicit feed shows only images and videos", "toggle", true);
   add("Explicit mode", "explicitTheme", "Theme while in explicit feeds", "select", "", { options: [["", "Keep current"], ["oled", "OLED black"], ["synth", "Synthwave"], ["rose", "Rosé"], ["cyber", "Cyberpunk"]] });
   add("Explicit mode", "explicitAutoplay", "Autoplay explicit videos (muted)", "toggle", true);
+  add("Explicit mode", "redgifsTab", "Open RedGIFs videos in the RedGIFs tab (creator, tags, more videos)", "toggle", true);
   add("Explicit mode", "panicKey", "Panic key: ` (backtick) hides everything and jumps to a safe page", "toggle", true);
   add("Explicit mode", "panicPage", "Safe page for the panic key", "text", "r/technology");
 
@@ -355,6 +364,7 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
   /* ---------------- routes: #/explicit, #/bookmarks ---------------- */
   let themeBefore = null, customFeed = null;
   function route(h) {
+    if (h === "redgifs" || h.startsWith("redgifs/")) return window.RSRedgifs ? RSRedgifs.route(h) : true;   // not loaded yet: it routes itself on load
     if (h.startsWith("comments/")) return false;          // opening a post keeps the current look
     if (h === "explicit") {
       if (!opt("explicit")) { openSettings("Explicit mode"); say("Turn on Explicit mode first"); history.replaceState(null, "", "#/r/popular"); return false; }
@@ -774,6 +784,16 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
 
   /* ---------------- keyboard ---------------- */
   let gPending = 0;
+  function playerKeys() {
+    const rows = [["Space / k", "Play or pause"], ["← / →", "Skip back / forward"], ["↑ / ↓", "Volume"], ["m", "Mute"], ["f", "Full screen"],
+      [", / .", "Step one frame back / forward"], ["l", "Loop on or off"], ["0–9", "Jump to 0%–90%"], ["Scroll / pinch", "Zoom images"], ["r", "Rotate image in the zoom viewer"]];
+    const m = document.createElement("div"); m.className = "modalbg"; m.style.zIndex = 125;
+    m.innerHTML = `<div class="modal"><div style="display:flex;align-items:center"><b style="flex:1;font-size:17px">Player shortcuts</b><button class="ghost" data-x>✕</button></div>
+      <p class="muted" style="font-size:12.5px">Click a video first so it has focus.</p>
+      <table style="width:100%;font-size:13px">${rows.map(([k, d]) => `<tr><td style="padding:4px 10px 4px 0"><span class="kbd">${escH(k)}</span></td><td>${escH(d)}</td></tr>`).join("")}</table></div>`;
+    document.body.appendChild(m);
+    m.onclick = e => { if (e.target === m || e.target.closest("[data-x]")) m.remove(); };
+  }
   function cheatSheet() {
     const rows = [["/", "Search / address bar"], ["j / k", "Move through posts"], ["Enter", "Open selected post"], ["n / p", "Next / previous post"],
       ["o", "Open the post's link"], ["b", "Bookmark the open post"], ["m", "Mute the open post's community"], ["g p", "Popular"], ["g h", "Home feed"],
@@ -786,6 +806,7 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
     m.onclick = e => { if (e.target === m || e.target.closest("[data-x]")) m.remove(); };
   }
   function onKey(e) {
+    if (e.target.closest && e.target.closest(".plyr, .pswp")) return;     // the player handles its own keys
     const typing = e.target.closest && e.target.closest("input,textarea,select,[contenteditable]");
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k" && opt("paletteKey")) { e.preventDefault(); palette(); return; }
     if ((e.metaKey || e.ctrlKey) && e.key === ",") { e.preventDefault(); openSettings(); return; }
@@ -889,7 +910,7 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
       v.addEventListener("loadedmetadata", () => (v.playbackRate = Number(opt("speed")) || 1), { once: true });
       const blurred = v.classList.contains("blurred");
       if (!blurred && (opt("autoplay") || (adult(p) && opt("explicitAutoplay")))) v.play().catch(() => {});
-      if (opt("pipButton") && document.pictureInPictureEnabled) {
+      if (opt("pipButton") && document.pictureInPictureEnabled && !opt("studioPlayer")) {
         const b = document.createElement("button"); b.className = "pipbtn"; b.title = "Picture in picture"; b.textContent = "⧉";
         b.onclick = ev => { ev.stopPropagation(); v.requestPictureInPicture().catch(() => {}); };
         v.parentElement.appendChild(b);
@@ -898,7 +919,7 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
     if (opt("lightbox")) {
       const imgs = [...el.querySelectorAll(".media img")];
       imgs.forEach((img, n) => img.addEventListener("click", () => { if (!img.classList.contains("blurred") && !img.closest(".media").querySelector(".reveal")) lightbox(imgs.map(x => x.src), n, false); }));
-      if (v) v.addEventListener("dblclick", () => lightbox([v.currentSrc || v.src], 0, true));
+      if (v && !opt("studioPlayer")) v.addEventListener("dblclick", () => lightbox([v.currentSrc || v.src], 0, true));
     }
     const depth = opt("collapseDepth");
     if (depth !== "off") el.querySelectorAll(`.cmt.d${depth}`).forEach(c => { c.classList.add("collapsed"); const t = c.querySelector(".tog"); if (t) t.textContent = "[+]"; });

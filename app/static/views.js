@@ -461,7 +461,7 @@
     };
   }
   document.addEventListener("keydown", ev => {
-    if (rv || ev.metaKey || ev.ctrlKey || ev.altKey || ev.target.closest("input,textarea,select")) return;
+    if (rv || ev.metaKey || ev.ctrlKey || ev.altKey || ev.target.closest("input,textarea,select,.plyr,.pswp")) return;
     if (ev.key === "[" || ev.key === "]") {
       const tops = $$("#comments > .cmt"); if (!tops.length) return;
       const d = $("#detail"), y = d.getBoundingClientRect().top + 60;

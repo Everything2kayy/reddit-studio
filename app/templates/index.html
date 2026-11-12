@@ -1043,5 +1043,7 @@ window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); instal
 $("#install").onclick = async () => { if (!installEvt) return; installEvt.prompt(); await installEvt.userChoice; installEvt = null; $("#install").hidden = true; };
 </script>
 <script src="/static/views.js"></script>
+<script src="/static/player.js"></script>
+<script src="/static/redgifs.js"></script>
 </body>
 </html>

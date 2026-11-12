@@ -1206,6 +1206,96 @@ def redgifs_id(url):
     return m.group(1).lower() if m else None
 
 
+def _rg_api(redgifs=None):
+    """The shared, logged-in RedGIFs client (guest token, renewed every 30 minutes). Call with _lock held."""
+    if redgifs is None:
+        try:
+            import redgifs
+        except ImportError:
+            raise RuntimeError("RedGIFs support isn't installed yet. Update Reddit Studio (it installs it automatically).")
+    if RG["api"] is None or time.time() - RG["at"] > 1800:
+        if RG["api"] is not None:
+            try:
+                RG["api"].close()
+            except Exception:
+                pass
+        api = redgifs.API()
+        api.login()
+        RG.update(api=api, at=time.time())
+    return RG["api"]
+
+
+def _rg_dict(g):
+    u = g.urls
+    rid = str(getattr(g, "id", "")).lower()
+    cd = getattr(g, "create_date", None)
+    return {"id": rid, "hd": u.hd or u.sd, "sd": u.sd, "poster": u.poster or u.thumbnail, "thumb": u.thumbnail or u.poster,
+            "user": getattr(g, "username", "") or "", "tags": list(getattr(g, "tags", []) or [])[:20],
+            "views": getattr(g, "views", None), "likes": getattr(g, "likes", None), "duration": getattr(g, "duration", None),
+            "audio": bool(getattr(g, "has_audio", False)), "width": getattr(g, "width", None), "height": getattr(g, "height", None),
+            "created": cd.timestamp() if hasattr(cd, "timestamp") else None, "page": f"https://www.redgifs.com/watch/{rid}"}
+
+
+def _rg_call(fn):
+    with _lock:
+        api = _rg_api()
+        try:
+            return fn(api)
+        except Exception as e:
+            RG["api"] = None
+            if "NotFound" in type(e).__name__ or "404" in str(e):
+                raise RuntimeError("RedGIFs says that doesn't exist or was removed.")
+            raise RuntimeError(f"RedGIFs didn't answer ({type(e).__name__}).")
+
+
+def redgifs_info(rid):
+    rid = (rid or "").lower()
+    if not re.fullmatch(r"[a-z]{3,80}", rid):
+        raise ValueError("That isn't a RedGIFs link.")
+    key = "rginfo:" + rid
+    hit = _cache.get(key)
+    if hit and time.time() - hit[0] < 1200:
+        return hit[1]
+    d = _rg_dict(_rg_call(lambda api: api.get_gif(rid)))
+    _cache[key] = (time.time(), d)
+    _rg_cache[rid] = (time.time(), {k: d[k] for k in ("id", "hd", "sd", "poster", "page")})
+    return d
+
+
+def _rg_list(key, fn, page):
+    hit = _cache.get(key)
+    if hit and time.time() - hit[0] < 600:
+        return hit[1]
+    r = _rg_call(fn)
+    out = {"items": [_rg_dict(g) for g in (getattr(r, "gifs", None) or [])], "page": getattr(r, "page", page),
+           "pages": getattr(r, "pages", None), "total": getattr(r, "total", None)}
+    for it in out["items"]:
+        _rg_cache[it["id"]] = (time.time(), {k: it[k] for k in ("id", "hd", "sd", "poster", "page")})
+    _cache[key] = (time.time(), out)
+    return out
+
+
+def redgifs_creator(user, page=1):
+    user = (user or "").strip().lstrip("@")
+    if not re.fullmatch(r"[A-Za-z0-9_.\-]{1,60}", user):
+        raise ValueError("That isn't a RedGIFs username.")
+    page = max(1, int(page or 1))
+    return _rg_list(f"rguser:{user.lower()}:{page}", lambda api: api.search_creator(user, page=page, count=40), page)
+
+
+def redgifs_tag(tag, page=1):
+    tag = (tag or "").strip()
+    if not tag or len(tag) > 60:
+        raise ValueError("Pick a tag.")
+    page = max(1, int(page or 1))
+    return _rg_list(f"rgtag:{tag.lower()}:{page}", lambda api: api.search(tag, count=40, page=page), page)
+
+
+def redgifs_trending(page=1):
+    page = max(1, int(page or 1))
+    return _rg_list(f"rgtop:{page}", lambda api: api.get_top_this_week(count=40, page=page), page)
+
+
 def redgifs_urls(rid):
     """HD/SD video links for a RedGIFs id, via the redgifs library (temporary guest token)."""
     rid = (rid or "").lower()
@@ -1219,15 +1309,7 @@ def redgifs_urls(rid):
     except ImportError:
         raise RuntimeError("RedGIFs support isn't installed yet. Update Reddit Studio (it installs it automatically).")
     with _lock:
-        if RG["api"] is None or time.time() - RG["at"] > 1800:
-            if RG["api"] is not None:
-                try:
-                    RG["api"].close()
-                except Exception:
-                    pass
-            api = redgifs.API()
-            api.login()
-            RG.update(api=api, at=time.time())
+        _rg_api(redgifs)
         try:
             g = RG["api"].get_gif(rid)
         except Exception as e:

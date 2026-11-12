@@ -34,6 +34,11 @@ self-updater from GitHub tags, Control Center (`rsctl`), double-click installer.
     (split/compact/grid/masonry/magazine/reader); immersive views build `#rv` (gallery/reels/theater); per-feed view in
     `rs_view_by_feed`. Also hover preview, focus mode, resume scroll, user tags (`rs_tags`), custom feeds (`rs_feeds`,
     route `#/f/<name>` in studio.js), comment tools, download modal. Collections `rs_coll` (`#/c/<name>`), history `#/history`.
+  - `static/player.js` Studio Player: Plyr (vendor/plyr.*) wraps videos on `rs:post` and in `#rv`; PhotoSwipe (ES module,
+    vendor/photoswipe*) for image zoom via capture-phase click. Options in Settings › Player (`studioPlayer`, `zoomViewer`…).
+  - `static/redgifs.js` RedGIFs tab (`#/redgifs`, `/<id>`, `/u/<name>`, `/t/<tag>`), section `#rgview`; backend
+    `redgifs_info/creator/tag/trending` in reddit_tools (shared logged-in client `_rg_api`), endpoints `/api/redgifs/*`.
+    Switches there from `rs:post` once per post. Only with explicit mode on.
   - `media.py` bulk downloader (one job at a time, `/api/media*`), saves to ~/Reddit Studio Files/Media/<feed>/.
   - `templates/index.html` the whole UI (Reader, Tools, Communities, account, phone QR, About/updates).
   - `VERSION` single source of truth. `update.json` names the update repo (`Everything2kayy/reddit-studio`).

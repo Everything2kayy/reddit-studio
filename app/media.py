@@ -131,7 +131,10 @@ def _merge_audio(video, audio_urls):
 
 
 def _posts_for(target, sort, t, limit):
-    """Collect post dicts from a feed target like r/pics, r/a+b, u/name, or a post link/id."""
+    """Collect post dicts from a feed target like r/pics, r/a+b, u/name, a post link/id, or a RedGIFs link."""
+    rid = rt.redgifs_id(target)
+    if rid:
+        return [{"id": rid, "url": f"https://www.redgifs.com/watch/{rid}", "created_utc": time.time(), "title": rid, "over_18": True}]
     m = re.search(r"comments/([a-z0-9]+)", target) or re.fullmatch(r"([a-z0-9]{5,8})", target)
     if m:
         data = rt.fetch(f"/comments/{m.group(1)}", limit=1)
