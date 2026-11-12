@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.2.0] - 2026-11-12
+### Fixed
+- Video controls showed as giant unstyled icons on some Macs (in Reels, Gallery and the RedGIFs tab). The app now labels its files correctly and builds the player's styles into the page.
+- RedGIFs thumbnails and posters that wouldn't load: the app no longer tells image servers which page asked, and fetches them itself if they still refuse.
+- Combined feeds (like the Explicit feed): if Reddit refuses the whole feed because one community is private, banned or 18+ for your account, Reddit Studio now loads each community separately and merges them.
+- 403 errors now include Reddit's reason when the Chrome extension gets one, and 18+ feeds show how to turn on mature content for your account.
+### Added
+- My Reddit sidebar (☰ next to the layout buttons): your Reddit account's joined communities and custom feeds (via your sign-in or the Chrome extension), your Studio feeds and favorites, and Recent — places you opened in the app and, with the extension, on reddit.com. Filter box, ☆ to favorite, ↻ to refresh. Your Reddit custom feeds also become Studio custom feeds with their own chips, and everything is in the Cmd+K palette.
+- Resizable layout: drag the dividers between the sidebar, feed and post (double-click resets).
+- Layouts: Side by side (normal), Tabs (My Reddit / Feed / Post, one at a time, full width), Feed full width, Post full width. \ cycles; Alt+1/2/3 picks a tab; Esc goes from Post back to Feed.
+- Chrome extension 1.1.0: remembers your recent reddit.com visits for the sidebar and reports Reddit's reason for refusals. Reload it in chrome://extensions after updating.
+
 ## [3.1.0] - 2026-11-12
 ### Added
 - Studio Player: every video gets full open-source controls (Plyr, MIT): skip back/forward, speed (0.25×–3×), loop, frame-by-frame (, and .), volume and speed remembered, picture-in-picture, AirPlay, full screen, an HD/SD switch on RedGIFs videos and a download button. Works in posts and in Gallery, Reels and Theater.

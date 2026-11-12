@@ -8,6 +8,7 @@ unauthenticated rate limit (~10 requests/minute).
 import csv
 import io
 import json
+from itertools import zip_longest
 import network
 import os
 import re
@@ -319,7 +320,7 @@ def _fetch_chain(path, params, tried):
             MODE.update(rss=False)
             return data
         tried.append("Chrome tab: " + (bridge.STATE.get("last_error") or "no answer"))
-    if path in ("/",) or re.fullmatch(r"/user/[^/]+/(saved|upvoted)", path):
+    if path in ("/",) or re.fullmatch(r"/user/[^/]+/(saved|upvoted)", path) or path.startswith(("/subreddits/mine", "/api/multi/mine", "/api/me")):
         raise RuntimeError(SIGNED["error"] or "Sign in first: this needs your Reddit account (see the account button, top right).")
     if MODE["rss"] and time.time() - MODE["since"] > JSON_RETRY:
         MODE["rss"] = False
@@ -1258,7 +1259,7 @@ def redgifs_info(rid):
         return hit[1]
     d = _rg_dict(_rg_call(lambda api: api.get_gif(rid)))
     _cache[key] = (time.time(), d)
-    _rg_cache[rid] = (time.time(), {k: d[k] for k in ("id", "hd", "sd", "poster", "page")})
+    _rg_cache[rid] = (time.time(), {k: d[k] for k in ("id", "hd", "sd", "poster", "page", "thumb")})
     return d
 
 
@@ -1270,7 +1271,7 @@ def _rg_list(key, fn, page):
     out = {"items": [_rg_dict(g) for g in (getattr(r, "gifs", None) or [])], "page": getattr(r, "page", page),
            "pages": getattr(r, "pages", None), "total": getattr(r, "total", None)}
     for it in out["items"]:
-        _rg_cache[it["id"]] = (time.time(), {k: it[k] for k in ("id", "hd", "sd", "poster", "page")})
+        _rg_cache[it["id"]] = (time.time(), {k: it[k] for k in ("id", "hd", "sd", "poster", "page", "thumb")})
     _cache[key] = (time.time(), out)
     return out
 
@@ -1294,6 +1295,29 @@ def redgifs_tag(tag, page=1):
 def redgifs_trending(page=1):
     page = max(1, int(page or 1))
     return _rg_list(f"rgtop:{page}", lambda api: api.get_top_this_week(count=40, page=page), page)
+
+
+_rg_img = {}
+
+
+def redgifs_image(rid, which="thumb"):
+    """Fetch a RedGIFs thumbnail/poster on the app's side (their image servers can refuse other sites)."""
+    rid = (rid or "").lower()
+    if not re.fullmatch(r"[a-z]{3,80}", rid):
+        raise ValueError("That isn't a RedGIFs id.")
+    key = rid + ":" + which
+    if key in _rg_img:
+        return _rg_img[key]
+    hit = _rg_cache.get(rid)
+    info = hit[1] if hit and hit[1].get(which) else redgifs_info(rid)
+    url = info.get(which) or info.get("poster")
+    req = Request(url, headers={"User-Agent": "Mozilla/5.0 (Macintosh) reddit-studio", "Accept": "image/*"})
+    with network.urlopen(req, timeout=20) as r:
+        data, ctype = r.read(), r.headers.get("Content-Type", "image/jpeg")
+    if len(_rg_img) > 400:
+        _rg_img.clear()
+    _rg_img[key] = (data, ctype)
+    return data, ctype
 
 
 def redgifs_urls(rid):
@@ -1388,6 +1412,70 @@ def parse_target(t):
     raise ValueError("Type a subreddit (python), a user (u/name), or paste a Reddit link.")
 
 
+def _split_multi(name, s, t, first_error):
+    """Reddit sometimes refuses a whole combined feed (r/a+b+c) because one community is private, banned or 18+
+    for this account. Read up to 12 communities one by one and merge what works."""
+    subs = [x for x in name.split("+") if x][:12]
+    posts, failed = [], []
+    for sub in subs:
+        try:
+            d = fetch(f"/r/{sub}/{s}", limit=10, t=t if s in ("top", "controversial") else None)
+            posts += [c["data"] for c in d["data"]["children"] if c["kind"] == "t3"]
+        except RuntimeError as e:
+            failed.append(f"r/{sub} ({str(e).split('.')[0][:60]})")
+    if not posts:
+        raise first_error
+    key = {"new": lambda d: -(d.get("created_utc") or 0), "top": lambda d: -(d.get("score") or 0)}.get(s)
+    if key:
+        posts.sort(key=key)
+    else:                                   # hot / rising: interleave so every community shows up near the top
+        by = {}
+        for d in posts:
+            by.setdefault(d.get("subreddit", ""), []).append(d)
+        posts = [d for group in zip_longest(*by.values()) for d in group if d]
+    MODE["split_failed"] = failed
+    return {"kind": "Listing", "data": {"children": [{"kind": "t3", "data": d} for d in posts], "after": None}}
+
+
+# ---------- your Reddit account: joined communities, custom feeds, recent visits ----------
+def my_reddit():
+    """Needs your sign-in or the Chrome extension. Cached for 10 minutes."""
+    hit = _cache.get("my_reddit")
+    if hit and time.time() - hit[0] < 600:
+        return hit[1]
+    import bridge
+    out = {"subs": [], "multis": [], "recent": list(bridge.STATE.get("recent") or [])[:60], "errors": []}
+    after = None
+    try:
+        for _ in range(10):                 # up to 1000 communities
+            d = fetch("/subreddits/mine/subscriber", limit=100, after=after)
+            for c in d["data"]["children"]:
+                x = c.get("data") or {}
+                if not x.get("display_name"):
+                    continue
+                icon = _u(x.get("community_icon") or x.get("icon_img") or "")
+                out["subs"].append({"name": x["display_name"], "title": x.get("title") or "", "members": x.get("subscribers"),
+                                    "nsfw": bool(x.get("over18")), "icon": icon.split("?")[0] if icon else ""})
+            after = d["data"].get("after")
+            if not after:
+                break
+    except RuntimeError as e:
+        out["errors"].append("Joined communities: " + str(e).split(" Tried:")[0])
+    try:
+        d = fetch("/api/multi/mine")
+        for m in d if isinstance(d, list) else []:
+            x = m.get("data") or {}
+            out["multis"].append({"name": x.get("name"), "display": x.get("display_name") or x.get("name"),
+                                  "path": x.get("path"), "nsfw": bool(x.get("over_18")),
+                                  "subs": [s.get("name") for s in x.get("subreddits") or [] if s.get("name")]})
+    except RuntimeError as e:
+        out["errors"].append("Custom feeds: " + str(e).split(" Tried:")[0])
+    out["subs"].sort(key=lambda x: x["name"].lower())
+    if out["subs"] or out["multis"]:
+        _cache["my_reddit"] = (time.time(), out)
+    return out
+
+
 def reader_listing(target, sort="hot", t="day", after=None):
     kind, name = parse_target(target)
     if kind == "post":
@@ -1411,8 +1499,13 @@ def reader_listing(target, sort="hot", t="day", after=None):
         title = f"u/{name}"
     else:
         s = sort if sort in SORTS else "hot"
-        data = fetch(f"/r/{name}/{s}", limit=25, after=after,
-                     t=t if s in ("top", "controversial") else None)
+        try:
+            data = fetch(f"/r/{name}/{s}", limit=25, after=after,
+                         t=t if s in ("top", "controversial") else None)
+        except RuntimeError as e:
+            if "+" not in name or after:
+                raise
+            data = _split_multi(name, s, t, e)
         title = f"r/{name}"
     return {"kind": kind, "name": name, "title": title, "limited": MODE["rss"] and not (_signed_client() and not SIGNED["error"]),
             "posts": [norm_post(d) for d in children(data, "t3")],

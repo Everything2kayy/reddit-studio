@@ -86,7 +86,7 @@
     const hide = blurOn();
     main.innerHTML = `
       ${state.from ? `<div class="rgfrom"><a href="#/comments/${e(state.from.id)}">← Back to the Reddit post</a> <span class="muted">· r/${e(state.from.subreddit)} · ${e(state.from.title)}</span></div>` : ""}
-      <div class="rgplayer ${hide ? "rgblur" : ""}"><video controls playsinline loop ${opt("startMuted") || !info.audio ? "muted" : ""} poster="${e(info.poster)}" src="${e(src)}"></video>
+      <div class="rgplayer ${hide ? "rgblur" : ""}"><video controls playsinline loop ${opt("startMuted") || !info.audio ? "muted" : ""} poster="/api/redgifs/img/${e(id)}?poster=1" src="${e(src)}"></video>
         ${hide ? '<div class="rgreveal" data-rv>18+ — click to show</div>' : ""}</div>
       <div class="rghead"><h2>${info.user ? `<a href="#/redgifs/u/${encodeURIComponent(info.user)}">@${e(info.user)}</a>` : "RedGIFs"}</h2>
         <button data-a="dl">⬇ Download</button><button data-a="copy">Copy link</button>
@@ -152,7 +152,7 @@
     const g = sec.querySelector("#rggrid"); if (!g) return;
     const hide = blurOn();
     g.innerHTML = state.list.map(x => `<div class="rgcard ${x.id === state.id ? "on" : ""} ${hide ? "rgblur" : ""}" data-id="${e(x.id)}" title="@${e(x.user)}">
-      <img loading="lazy" src="${e(x.thumb)}" alt="">${x.duration ? `<span class="d">${Math.round(x.duration)}s</span>` : ""}${state.side !== "creator" && x.user ? `<span class="u">@${e(x.user)}</span>` : ""}</div>`).join("")
+      <img loading="lazy" src="${e(x.thumb)}" alt="" onerror="this.onerror=null;this.src='/api/redgifs/img/${e(x.id)}'">${x.duration ? `<span class="d">${Math.round(x.duration)}s</span>` : ""}${state.side !== "creator" && x.user ? `<span class="u">@${e(x.user)}</span>` : ""}</div>`).join("")
       || '<div class="rgempty">Nothing here.</div>';
     const more = sec.querySelector("#rgmore");
     more.innerHTML = state.page < (state.pages || 1) ? `<button style="width:100%">Load more</button>` : "";

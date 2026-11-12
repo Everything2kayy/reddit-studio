@@ -39,6 +39,10 @@ self-updater from GitHub tags, Control Center (`rsctl`), double-click installer.
   - `static/redgifs.js` RedGIFs tab (`#/redgifs`, `/<id>`, `/u/<name>`, `/t/<tag>`), section `#rgview`; backend
     `redgifs_info/creator/tag/trending` in reddit_tools (shared logged-in client `_rg_api`), endpoints `/api/redgifs/*`.
     Switches there from `rs:post` once per post. Only with explicit mode on.
+  - `static/layout.js` My Reddit sidebar (`#mysb`, data from `/api/my` = `rt.my_reddit()`: /subreddits/mine/subscriber,
+    /api/multi/mine, extension visits from `bridge.STATE["recent"]`; multis synced into `rs_feeds` with `rs_feeds_src`),
+    absolute-positioned splitters setting `#cols` grid inline, layout modes in `rs_layout2` (split | tabs + tab my/feed/post).
+    `reddit_tools._split_multi` merges r/a+b+c per community when Reddit refuses the combined feed.
   - `media.py` bulk downloader (one job at a time, `/api/media*`), saves to ~/Reddit Studio Files/Media/<feed>/.
   - `templates/index.html` the whole UI (Reader, Tools, Communities, account, phone QR, About/updates).
   - `VERSION` single source of truth. `update.json` names the update repo (`Everything2kayy/reddit-studio`).

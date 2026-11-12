@@ -8,11 +8,15 @@
   const opt = id => Studio.opt(id);
   const say = m => (window.toast ? toast(m) : console.log(m));
   const VENDOR = "/static/vendor/";
-  for (const href of ["plyr.css", "photoswipe.css"]) {
-    const l = document.createElement("link"); l.rel = "stylesheet"; l.href = VENDOR + href; document.head.appendChild(l);
+  // Put the libraries' stylesheets straight into the page (a <link> can be refused if the file type is mislabeled).
+  for (const name of ["plyr.css", "photoswipe.css"]) {
+    fetch(VENDOR + name).then(r => r.text()).then(t => {
+      const st = document.createElement("style"); st.dataset.vendor = name; st.textContent = t; document.head.prepend(st);
+    }).catch(() => { const l = document.createElement("link"); l.rel = "stylesheet"; l.href = VENDOR + name; document.head.prepend(l); });
   }
   const css = document.createElement("style");
   css.textContent = `
+  .plyr svg{width:18px;height:18px;flex:none}
   .plyr{--plyr-color-main:var(--accent);--plyr-video-background:#000;border-radius:inherit;height:100%}
   .media .plyr{max-height:var(--rs-media-h,72vh)}
   .media .plyr video{max-height:var(--rs-media-h,72vh)}

@@ -41,7 +41,7 @@
     bridgeOn = !!(first.ok && S.bridge); paintStatus();
     for (;;) {
       if (!S.bridge) { bridgeOn = false; await sleep(3000); continue; }
-      const r = await send({ type: "checkin", body: { version: VERSION, tab: location.pathname } });
+      const r = await send({ type: "checkin", body: { version: VERSION, tab: location.pathname, recent: visits } });
       const was = bridgeOn;
       bridgeOn = !!r.ok; bridgeErr = r.ok ? "" : r.error || "";
       if (was !== bridgeOn) { paintStatus(); note(bridgeOn ? "Connected to the Reddit Studio app" : "App not reachable"); }
@@ -53,13 +53,39 @@
     if (!/^\/[A-Za-z0-9_\/\-.]*(\?.*)?$/.test(job.url)) return send({ type: "result", id: job.id, body: { error: "unsafe path" } });
     try {
       const r = await fetch(location.origin.replace("old.", "www.") + job.url, { credentials: "include", headers: { Accept: "application/json" } });
-      if (!r.ok) { note(`App asked for ${job.url.split("?")[0]} → ${r.status}`); return send({ type: "result", id: job.id, body: { error: "http", status: r.status } }); }
+      if (!r.ok) {
+        let reason = "";
+        try { const t = await r.text(); const j = JSON.parse(t); reason = j.reason || j.message || ""; } catch {}
+        if (r.status === 403 && !reason && /over18|nsfw/i.test(r.url)) reason = "18+ content is off for this account";
+        note(`App asked for ${job.url.split("?")[0]} → ${r.status}${reason ? " (" + reason + ")" : ""}`);
+        return send({ type: "result", id: job.id, body: { error: "http", status: r.status, reason } });
+      }
+      if (/\/over18/.test(r.url)) {
+        note(`App asked for ${job.url.split("?")[0]} → 18+ content is off for this account`);
+        return send({ type: "result", id: job.id, body: { error: "http", status: 403, reason: "18+ content is off for this account" } });
+      }
       const data = await r.json();
       note(`App asked for ${job.url.split("?")[0]} → ok`);
       send({ type: "result", id: job.id, body: { data } });
     } catch (e) { note(`App request failed: ${e.message}`); send({ type: "result", id: job.id, body: { error: String(e.message) } }); }
   }
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  // recent visits on reddit.com (communities, users, posts), so the app can show them under Recent
+  let visits = [];
+  chrome.storage.local.get("rs_visits", ({ rs_visits }) => { visits = rs_visits || []; recordVisit(); });
+  function recordVisit() {
+    const p = location.pathname;
+    let m, item = null;
+    if ((m = /^\/r\/([A-Za-z0-9_]+)\/comments\/([a-z0-9]+)/i.exec(p))) item = { t: "post", id: m[2], sub: m[1], title: document.title.replace(/ : r\/.*$| - Reddit$/i, "").slice(0, 140) };
+    else if ((m = /^\/r\/([A-Za-z0-9_+]+)\/?/i.exec(p))) item = { t: "r", name: m[1] };
+    else if ((m = /^\/(?:u|user)\/([A-Za-z0-9_\-]+)\/?(?:$|submitted|overview)/i.exec(p))) item = { t: "u", name: m[1] };
+    else if ((m = /^\/user\/([A-Za-z0-9_\-]+)\/m\/([A-Za-z0-9_]+)/i.exec(p))) item = { t: "m", user: m[1], name: m[2] };
+    if (!item) return;
+    const key = JSON.stringify([item.t, item.id || item.name, item.user || ""]);
+    visits = [{ ...item, at: Date.now() }, ...visits.filter((v) => JSON.stringify([v.t, v.id || v.name, v.user || ""]) !== key)].slice(0, 100);
+    chrome.storage.local.set({ rs_visits: visits });
+  }
 
   // ---------------- page tweaks ----------------
   const TWEAKS = [
@@ -353,7 +379,7 @@
   document.addEventListener("keydown", (e) => { if (e.altKey && (e.key === "s" || e.code === "KeyS")) { e.preventDefault(); setOpen(!S.open); } });
   chrome.runtime.onMessage.addListener((m) => { if (m.type === "toggle") setOpen(!S.open); });
   let lastPath = location.pathname;
-  setInterval(() => { if (location.pathname !== lastPath) { lastPath = location.pathname; reader = { path: null, view: "list" }; if (S.open && S.tab === "reader") render(); } }, 800);
+  setInterval(() => { if (location.pathname !== lastPath) { lastPath = location.pathname; setTimeout(recordVisit, 1200); reader = { path: null, view: "list" }; if (S.open && S.tab === "reader") render(); } }, 800);
 
   chrome.storage.local.get("rs", ({ rs }) => {
     Object.assign(S, rs || {});

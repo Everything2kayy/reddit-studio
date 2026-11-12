@@ -2,6 +2,7 @@
 <html lang="en" data-theme="midnight">
 <head>
 <meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Reddit Studio</title>
 <meta name="theme-color" content="#0f1115">
@@ -721,6 +722,7 @@ async function loadFeed(target, more) {
     $("#feedfoot").innerHTML = `<div class="empty error">${esc(err.message)}<br><br><button id="retry"><span class="ms">refresh</span>Try again</button></div>`;
     $("#retry").onclick = () => loadFeed(target, more);
     fixButton($("#retry").parentElement, err.message);
+    document.dispatchEvent(new CustomEvent("rs:feederror", { detail: { target, message: err.message, el: $("#retry").parentElement } }));
   } finally { if (req === feed.req) feed.busy = false; }
 }
 
@@ -1045,5 +1047,6 @@ $("#install").onclick = async () => { if (!installEvt) return; installEvt.prompt
 <script src="/static/views.js"></script>
 <script src="/static/player.js"></script>
 <script src="/static/redgifs.js"></script>
+<script src="/static/layout.js"></script>
 </body>
 </html>

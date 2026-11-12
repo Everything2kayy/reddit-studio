@@ -1,4 +1,5 @@
 import hmac
+import mimetypes
 import os
 import secrets
 import socket
@@ -15,6 +16,11 @@ import media
 import updater
 from reddit_tools import REGISTRY
 
+# Some Macs map these extensions to the wrong type, and Chrome then refuses the file
+# (that left the video player unstyled). Set them explicitly.
+for _ext, _type in ((".css", "text/css"), (".js", "text/javascript"), (".mjs", "text/javascript"), (".svg", "image/svg+xml"),
+                    (".json", "application/json"), (".webmanifest", "application/manifest+json"), (".mp4", "video/mp4")):
+    mimetypes.add_type(_type, _ext)
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True     # after an update the page always matches the files on disk
 app.jinja_env.auto_reload = True
@@ -338,6 +344,15 @@ def media_open():
     return _wrap(go)
 
 
+@app.get("/api/redgifs/img/<rid>")
+def redgifs_img(rid):
+    try:
+        data, ctype = rt.redgifs_image(rid, "poster" if request.args.get("poster") else "thumb")
+    except Exception as e:
+        return str(e), 404
+    return app.response_class(data, mimetype=ctype, headers={"Cache-Control": "max-age=3600"})
+
+
 @app.get("/api/redgifs/info/<rid>")
 def redgifs_info(rid):
     return _wrap(lambda: rt.redgifs_info(rid))
@@ -358,6 +373,15 @@ def redgifs_trending():
     return _wrap(lambda: rt.redgifs_trending(request.args.get("page", 1)))
 
 
+@app.get("/api/my")
+def my_reddit():
+    def go():
+        if request.args.get("fresh"):
+            rt._cache.pop("my_reddit", None)
+        return rt.my_reddit()
+    return _wrap(go)
+
+
 # ---------- Chrome extension bridge ----------
 @app.post("/api/bridge/checkin")
 def bridge_checkin():
@@ -366,7 +390,7 @@ def bridge_checkin():
         if not _is_local():
             raise RuntimeError("Only on this computer.")
         d = request.get_json(silent=True) or {}
-        return bridge.checkin(d.get("version", ""), d.get("tab", ""), d.get("user", ""))
+        return bridge.checkin(d.get("version", ""), d.get("tab", ""), d.get("user", ""), d.get("recent"))
     return _wrap(go)
 
 
@@ -377,7 +401,7 @@ def bridge_result(jid):
         if not _is_local():
             raise RuntimeError("Only on this computer.")
         d = request.get_json(silent=True) or {}
-        return bridge.deliver(jid, d.get("data"), d.get("error"), d.get("status"))
+        return bridge.deliver(jid, d.get("data"), d.get("error"), d.get("status"), d.get("reason"))
     return _wrap(go)
 
 

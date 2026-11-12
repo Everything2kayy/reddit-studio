@@ -702,6 +702,7 @@ ${mods().filter(m => m.on && m.type === "css").map(m => m.code).join("\n")}`;
     LS.get("rs_recent", []).forEach(t => go(t, "#/" + t, "Recent"));
     (G.tools() || []).forEach(t => items.push({ label: t.name, hint: "Tool", run: () => (location.hash = "#/tools/" + t.id) }));
     O.forEach(o => items.push({ label: o.label, hint: "Setting · " + o.cat, run: () => { openSettings(o.cat); setTimeout(() => { const el = $("#opt-" + o.id); el && el.scrollIntoView({ block: "center" }); el && el.focus(); }, 30); } }));
+    if (window.Studio && Studio.extraItems) { try { Studio.extraItems().forEach(i => items.push(i)); } catch {} }
     Object.entries(THEMES).forEach(([id, t]) => items.push({ label: "Theme: " + t[0], hint: "Theme", run: () => setTheme(id) }));
     [["Open Helper", () => $("#helpbtn").click()], ["Reddit account", () => $("#acct").click()], ["Communities", () => $("#dirbtn").click()],
      ["Settings", () => openSettings()], ["Keyboard shortcuts", () => cheatSheet()], ["Lock now", () => lock()], ["Setup wizard", () => wizard()],

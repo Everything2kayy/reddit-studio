@@ -33,9 +33,11 @@ def status():
             "last_seen": STATE["seen"] or None}
 
 
-def checkin(version="", tab="", user=""):
+def checkin(version="", tab="", user="", recent=None):
     """Called by the extension. Returns the requests waiting for it."""
     STATE.update(seen=time.time(), version=str(version)[:20], tab=str(tab)[:200], user=str(user)[:40])
+    if isinstance(recent, list):
+        STATE["recent"] = [r for r in recent if isinstance(r, dict) and isinstance(r.get("t"), str)][:100]
     out = []
     end = time.time() + HOLD
     with _cond:
@@ -52,12 +54,12 @@ def checkin(version="", tab="", user=""):
     return {"jobs": out}
 
 
-def deliver(jid, data=None, error=None, status_code=None):
+def deliver(jid, data=None, error=None, status_code=None, reason=None):
     with _lock:
         j = _jobs.get(int(jid))
     if not j:
         return {"ok": False}
-    j["result"], j["error"], j["status"] = data, error, status_code
+    j["result"], j["error"], j["status"], j["reason"] = data, error, status_code, (str(reason)[:80] if reason else "")
     j["event"].set()
     return {"ok": True}
 
@@ -83,7 +85,8 @@ def fetch(url_path):
             code = j.get("status")
             if code == 404:
                 raise RuntimeError("Reddit says that doesn't exist (404). Check the spelling.")
-            STATE["last_error"] = f"HTTP {code}" if code else (j["error"] or "no answer")
+            reason = j.get("reason") or ""
+            STATE["last_error"] = (f"HTTP {code}" + (f" ({reason})" if reason else "")) if code else (j["error"] or "no answer")
             return None
         STATE["served"] += 1
         return j["result"]
