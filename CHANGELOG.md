@@ -1,5 +1,11 @@
 # Changelog
 
+## [2.7.0] - 2026-11-12
+### Added
+- Chrome extension (Helper › Add Chrome extension): a Studio panel right on reddit.com with a clean Reader (threaded comments), Tools (page stats, media links, Markdown/JSON/CSV export, keyword highlight), Tweaks (14 page tweaks plus your own live CSS), and Dev tools (page JSON inspector with filter, element picker that copies a CSS selector, layout overlays, activity log). Open it with the orange RS button or Alt+S.
+- Chrome link: while a reddit.com tab is open, the app reads through your normal signed-in Chrome when Reddit blocks it directly. The top bar shows "Via Chrome".
+- RedGIFs: posts that link to RedGIFs now play in the Reader (still blurred until you choose to show 18+ media), plus a "RedGIFs video links" tool for HD/SD files.
+
 ## [2.6.5] - 2026-11-12
 ### Changed
 - Helper suggests Sign in with Chrome first when Reddit blocks you, then trying a different network. Reddit now approves new API keys mainly for moderation tools, so the API key option is tucked away for people who already have one.

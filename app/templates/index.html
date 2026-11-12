@@ -510,7 +510,9 @@ async function refreshAccount() {
   const api = account.api || {};
   b.classList.toggle("on", account.available || !!api.active);
   if (api.active) b.classList.remove("warn");
-  $("#acctlabel").textContent = api.active ? "API key" : account.available ? `u/${account.user || "signed in"}` : account.archive && account.rss ? "Archive mode" : account.rss ? "Limited mode" : "Public mode";
+  const viaChrome = account.bridge && account.bridge.connected;
+  if (viaChrome) { b.classList.add("on"); b.classList.remove("warn"); }
+  $("#acctlabel").textContent = api.active ? "API key" : viaChrome && !account.available ? "Via Chrome" : account.available ? `u/${account.user || "signed in"}` : account.archive && account.rss ? "Archive mode" : account.rss ? "Limited mode" : "Public mode";
   b.title = api.error || account.error || (api.active ? "Reading through Reddit's official API with your key" : account.available ? "Signed in with rdt-cli" : "Not signed in");
   renderChips();
 }

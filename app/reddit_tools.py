@@ -253,7 +253,8 @@ def _signed_client():
 
 def signed_status():
     return {"available": bool(_signed_client()), "user": SIGNED["user"], "error": SIGNED["error"],
-            "off": SIGNED["off"], "rss": MODE["rss"], "archive": MODE.get("archive", False), "cred_file": os.path.exists(CRED_FILE),
+            "off": SIGNED["off"], "rss": MODE["rss"], "archive": MODE.get("archive", False),
+            "bridge": __import__("bridge").status(), "cred_file": os.path.exists(CRED_FILE),
             "api": api_status()}
 
 
@@ -296,6 +297,13 @@ def fetch(path, **params):
             else:
                 SIGNED["error"] = f"Signed-in request failed ({kind}); using public data instead."
             # fall through to public data / RSS
+    import bridge
+    if bridge.alive():                  # Chrome extension: reads through your signed-in browser
+        q = urlencode({**params, "raw_json": 1})
+        data = bridge.fetch(("/.json" if path == "/" else path + ".json") + "?" + q)
+        if data is not None:
+            MODE.update(rss=False)
+            return data
     if path in ("/",) or re.fullmatch(r"/user/[^/]+/(saved|upvoted)", path):
         raise RuntimeError(SIGNED["error"] or "Sign in first: this needs your Reddit account (see the account button, top right).")
     if MODE["rss"] and time.time() - MODE["since"] > JSON_RETRY:
@@ -671,6 +679,15 @@ def media_links(d):
         out.append({"type": "video" if re.search(r"mp4|gifv", u, re.I) else "image", "url": u})
     elif "i.redd.it" in u or "i.imgur.com" in u:
         out.append({"type": "image", "url": u})
+    rid = redgifs_id(u)
+    if rid:
+        try:
+            r = redgifs_urls(rid)
+            out.append({"type": "RedGIFs video (HD)", "url": r["hd"]})
+            if r["sd"] != r["hd"]:
+                out.append({"type": "RedGIFs video (SD)", "url": r["sd"]})
+        except RuntimeError as e:
+            out.append({"type": "RedGIFs (couldn't load)", "url": f"https://www.redgifs.com/watch/{rid}  ({e})"})
     seen, uniq = set(), []
     for m in out:
         if m["url"] not in seen:
@@ -822,6 +839,22 @@ def post_media(p):
     if not links:
         raise ValueError("No downloadable media found in that post.")
     return links
+
+@tool("redgifs_links", "RedGIFs video links", "Threads",
+      "HD and SD video files for a RedGIFs link (or a Reddit post that links to one).",
+      [P("ref", "RedGIFs link, or Reddit post link")])
+def redgifs_links(p):
+    ref = (p.get("ref") or "").strip()
+    rid = redgifs_id(ref)
+    if not rid and ref:
+        d, _ = _thread({"ref": ref}, limit=1)
+        rid = redgifs_id(d.get("url_overridden_by_dest") or d.get("url") or "")
+    if not rid:
+        raise ValueError("No RedGIFs video found there.")
+    r = redgifs_urls(rid)
+    return [{"quality": "HD", "url": r["hd"]}, {"quality": "SD", "url": r["sd"]},
+            {"quality": "Poster image", "url": r["poster"]}, {"quality": "RedGIFs page", "url": r["page"]}]
+
 
 # =================================================================
 # People
@@ -1142,6 +1175,54 @@ def _video_of(d):
     return None
 
 
+# ---------- RedGIFs (videos many 18+ posts link to) ----------
+RG = {"api": None, "at": 0.0}
+_rg_cache = {}
+RG_RE = re.compile(r"redgifs\.com/(?:watch|ifr|i)/([A-Za-z]+)", re.I)
+
+
+def redgifs_id(url):
+    m = RG_RE.search(url or "")
+    return m.group(1).lower() if m else None
+
+
+def redgifs_urls(rid):
+    """HD/SD video links for a RedGIFs id, via the redgifs library (temporary guest token)."""
+    rid = (rid or "").lower()
+    if not re.fullmatch(r"[a-z]{3,80}", rid):
+        raise ValueError("That isn't a RedGIFs link.")
+    hit = _rg_cache.get(rid)
+    if hit and time.time() - hit[0] < 1200:
+        return hit[1]
+    try:
+        import redgifs
+    except ImportError:
+        raise RuntimeError("RedGIFs support isn't installed yet. Update Reddit Studio (it installs it automatically).")
+    with _lock:
+        if RG["api"] is None or time.time() - RG["at"] > 1800:
+            if RG["api"] is not None:
+                try:
+                    RG["api"].close()
+                except Exception:
+                    pass
+            api = redgifs.API()
+            api.login()
+            RG.update(api=api, at=time.time())
+        try:
+            g = RG["api"].get_gif(rid)
+        except Exception as e:
+            RG["api"] = None
+            name = type(e).__name__
+            if "NotFound" in name or "404" in str(e):
+                raise RuntimeError("RedGIFs says that video doesn't exist or was removed.")
+            raise RuntimeError(f"RedGIFs didn't answer ({name}).")
+    u = g.urls
+    out = {"id": rid, "hd": u.hd or u.sd, "sd": u.sd, "poster": u.poster or u.thumbnail,
+           "page": f"https://www.redgifs.com/watch/{rid}"}
+    _rg_cache[rid] = (time.time(), out)
+    return out
+
+
 def norm_post(d):
     link = _u(d.get("url_overridden_by_dest") or d.get("url") or "")
     prev = ((d.get("preview") or {}).get("images") or [{}])[0]
@@ -1172,6 +1253,8 @@ def norm_post(d):
         media.update(type="image", images=[link if re.search(r"\.(jpe?g|png|gif|webp)", link, re.I) else src])
     elif link.endswith(".gifv"):
         media.update(type="video", video={"mp4": link[:-5] + ".mp4", "hls": None, "gif": True})
+    elif redgifs_id(link):
+        media.update(type="video", video={"mp4": f"/api/redgifs/{redgifs_id(link)}.mp4", "hls": None, "gif": False})
     return {"id": d.get("id"), "title": d.get("title", ""), "subreddit": d.get("subreddit", ""),
             "author": d.get("author", ""), "score": d.get("score"),
             "comments": d.get("num_comments"), "created_utc": d.get("created_utc", 0),

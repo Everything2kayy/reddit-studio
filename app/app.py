@@ -8,6 +8,7 @@ from flask import Flask, jsonify, redirect, render_template, request, send_from_
 
 import reddit_tools as rt
 import helper
+import bridge
 import updater
 from reddit_tools import REGISTRY
 
@@ -207,6 +208,44 @@ def helper_run(action):
         _from_app()
         return helper.run(action)
     return _wrap(go)
+
+
+# ---------- RedGIFs playback ----------
+@app.get("/api/redgifs/<rid>.mp4")
+def redgifs_video(rid):
+    try:
+        r = rt.redgifs_urls(rid)
+    except (ValueError, RuntimeError) as e:
+        return str(e), 404
+    return redirect(r["hd"] or r["sd"], code=302)
+
+
+# ---------- Chrome extension bridge ----------
+@app.post("/api/bridge/checkin")
+def bridge_checkin():
+    def go():
+        _from_app()
+        if not _is_local():
+            raise RuntimeError("Only on this computer.")
+        d = request.get_json(silent=True) or {}
+        return bridge.checkin(d.get("version", ""), d.get("tab", ""), d.get("user", ""))
+    return _wrap(go)
+
+
+@app.post("/api/bridge/result/<int:jid>")
+def bridge_result(jid):
+    def go():
+        _from_app()
+        if not _is_local():
+            raise RuntimeError("Only on this computer.")
+        d = request.get_json(silent=True) or {}
+        return bridge.deliver(jid, d.get("data"), d.get("error"), d.get("status"))
+    return _wrap(go)
+
+
+@app.get("/api/bridge")
+def bridge_status():
+    return _wrap(bridge.status)
 
 
 # ---------- phone access ----------

@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Reddit Studio",
+  "version": "1.0.0",
+  "description": "A Studio panel on reddit.com: clean reader, analysis tools, page tweaks and developer tools. Also lets the Reddit Studio app read through your browser.",
+  "icons": {"128": "icon.png"},
+  "action": {"default_title": "Reddit Studio"},
+  "background": {"service_worker": "background.js"},
+  "permissions": ["storage"],
+  "host_permissions": ["https://www.reddit.com/*", "https://old.reddit.com/*", "http://127.0.0.1:5055/*"],
+  "content_scripts": [{
+    "matches": ["https://www.reddit.com/*", "https://old.reddit.com/*"],
+    "js": ["content.js"],
+    "run_at": "document_idle"
+  }]
+}

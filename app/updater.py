@@ -27,7 +27,7 @@ from urllib.request import Request, urlopen
 HERE = os.path.dirname(os.path.abspath(__file__))
 BACKUPS = os.path.join(HERE, ".old")
 USER_SETTINGS = os.path.join(HERE, ".user-settings.json")
-REQUIRED = ["app.py", "helper.py", "reddit_tools.py", "menubar.py", "updater.py", "VERSION",
+REQUIRED = ["app.py", "helper.py", "bridge.py", "reddit_tools.py", "menubar.py", "updater.py", "VERSION",
             "requirements.txt", "templates/index.html"]
 KEEP = {".venv", ".old", ".user-settings.json", "server.log"}   # never touched by updates
 UA = "reddit-studio-updater"

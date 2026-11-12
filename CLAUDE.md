@@ -24,6 +24,12 @@ self-updater from GitHub tags, Control Center (`rsctl`), double-click installer.
   - `rsctl` bash Control Center: `rsctl` (clickable list, 23 options) or `rsctl <action>`.
   - `templates/index.html` the whole UI (Reader, Tools, Communities, account, phone QR, About/updates).
   - `VERSION` single source of truth. `update.json` names the update repo (`Everything2kayy/reddit-studio`).
+- `app/extension/` Chrome MV3 extension (load unpacked from `~/reddit-studio/extension`). `content.js` = shadow-DOM panel
+  (Reader/Tools/Tweaks/Dev) using same-origin reddit `.json` with the user's cookies, plus the bridge loop: long-polls
+  the app via `background.js` (`/api/bridge/checkin`, `/api/bridge/result/<id>`). `bridge.py` queues app fetches for it;
+  `reddit_tools.fetch` uses it after API key / rdt sign-in and before anonymous `.json`/RSS/archive.
+- RedGIFs: `redgifs_urls()` (redgifs lib, guest token, 20-min cache); `/api/redgifs/<id>.mp4` redirects to the HD file;
+  `norm_post` maps redgifs links to video; tool `redgifs_links`.
 - `installer/build.py` → `dist/Reddit-Studio-<version>.zip` (embeds all of `app/` into `Reddit Studio.command`).
 - `extras/feed-studio.user.js` userscript for Reddit + X (also served from `app/static/`).
 

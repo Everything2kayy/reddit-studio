@@ -291,7 +291,27 @@ def _build_installer():
     return ok
 
 
+def _extension():
+    ext = os.path.join(HERE, "extension")
+    if not os.path.exists(os.path.join(ext, "manifest.json")):
+        _log("The extension folder is missing from this install. Update Reddit Studio, then try again.\n")
+        return False
+    _log("Add the Reddit Studio extension to Chrome (one time):\n\n"
+         "  1. In Chrome, open the address chrome://extensions\n"
+         "  2. Turn on Developer mode (top right).\n"
+         "  3. Click Load unpacked, then choose this folder:\n"
+         f"     {ext}\n"
+         "     (A Finder window with it just opened. In the file picker, press Cmd+Shift+G and paste the path.)\n"
+         "  4. Open any reddit.com page. An orange RS button appears bottom right (or press Alt+S).\n\n"
+         "After Reddit Studio updates, click the reload arrow on the extension's card in chrome://extensions.\n")
+    if sys.platform == "darwin":
+        subprocess.Popen(["open", ext], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    remember(extension_shown=time.time())
+    return True
+
+
 ACTIONS = {
+    "extension": ("Add Chrome extension", _extension),
     "install_signin": ("Set up Reddit sign-in", _install_signin),
     "signin": ("Sign in with Chrome", _signin),
     "signin_status": ("Check sign-in", _signin_status),
@@ -340,6 +360,11 @@ def suggestions(account, err_hint=""):
         else:
             add("install_signin", "Set up Reddit sign-in",
                 "One-time setup so Reddit Studio can read with your Reddit account.", 0.88 if blocked else 0.45)
+    br = account.get("bridge") or {}
+    if blocked and not br.get("connected"):
+        add("extension", "Add the Chrome extension",
+            "Reads Reddit through your normal Chrome tab, so blocks on the app don't matter. Keep one reddit.com tab open.",
+            0.89 if not _mem().get("extension_shown") else 0.7)
     if blocked:
         add("network", "Try a different network",
             "Reddit sometimes blocks a whole home connection. Switch to your phone's hotspot for a minute, then click Try again.",
